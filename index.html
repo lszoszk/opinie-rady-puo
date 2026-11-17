@@ -8,11 +8,11 @@
 <script>try{var t=localStorage.getItem("rpuo.theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="stylesheet" href="tokens.css?v=c1ccaf98">
 <link rel="stylesheet" href="fonts.css?v=cede2929">
-<link rel="stylesheet" href="app.css?v=e5fd392b">
+<link rel="stylesheet" href="app.css?v=f5cf29fd">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
 <script src="static-api.js?v=1acf3a47"></script>
   <script src="app.js?v=4d4837a4" defer></script>
-  <script src="tour.js?v=9f0bba97" defer></script>
+  <script src="tour.js?v=1e26cd39" defer></script>
 </head>
 <body>
 <header class="top">
@@ -114,6 +114,7 @@
   <span class="fb-item fb-wide">Forum Podatkowe UAM, 19.11.2026</span>
   <span class="fb-item fb-wide">Ł. Szoszkiewicz</span>
   <span class="fb-item">źródło: <a href="https://www.gov.pl/web/finanse/prace-rady2" rel="noopener">gov.pl (MF)</a></span>
+  <button type="button" class="fb-about fb-mcp" id="mcpBtn" aria-haspopup="dialog">MCP</button>
   <button type="button" class="fb-about" id="aboutBtn" aria-haspopup="dialog">O narzędziu</button>
 </footer>
 <dialog id="aboutDlg" class="about" aria-labelledby="aboutTitle">
@@ -132,6 +133,15 @@
     <li><strong>Wyszukiwarka:</strong> lematy (simplemma), składnia AND/OR/NOT; tryb „Znaczenie” – embeddingi Voyage AI <code>voyage-4-large</code> + wyszukiwanie hybrydowe na maszynie wirtualnej UAM.</li>
     <li><strong>Podgląd PDF</strong> z podświetleniem fragmentu – ze współrzędnych słów, nie z warstwy tekstu PDF.</li>
   </ol>
+  <h3 id="aboutMcp">Serwer MCP – uchwały w Twoim asystencie AI</h3>
+  <p><strong>Po co:</strong> serwer MCP (Model Context Protocol) daje asystentowi AI – np. Claude – bezpośredni dostęp do tej wyszukiwarki. Zamiast wklejać fragmenty, zadajesz pytanie („jak Rada ocenia sztuczność przy aporcie znaku towarowego?”), a asystent sam przeszukuje uchwały (słowami i semantycznie), czyta potrzebne punkty i cytuje je <strong>dosłownie, z pinpointem</strong> („Uchwała Rady … nr 4/2025 z 3.06.2025 r., pkt 48”) i linkiem do PDF. Odpowiedź da się więc sprawdzić punkt po punkcie.</p>
+  <p><strong>Narzędzia:</strong> <code>gaar_search</code>, <code>gaar_semantic_search</code>, <code>gaar_get_document</code>, <code>gaar_get_paragraphs</code>, <code>gaar_cited_by</code>, <code>gaar_cites</code>, <code>gaar_facets</code>.</p>
+  <p><strong>Jak podłączyć</strong> (adres: <code>https://150.254.115.204/gaar-mcp/mcp</code>):</p>
+  <ul>
+    <li><strong>Claude Code</strong> (terminal): <code>claude mcp add --transport http gaar https://150.254.115.204/gaar-mcp/mcp</code></li>
+    <li><strong>claude.ai / aplikacja Claude:</strong> Ustawienia → Łączniki (Connectors) → Dodaj własny łącznik → wklej powyższy adres.</li>
+    <li>Inne klienty MCP: transport „Streamable HTTP”, ten sam adres; bez logowania.</li>
+  </ul>
   <h3>Zużyte zasoby</h3>
   <ul>
     <li>Plan Claude Max: ok. <strong>8 pp tygodniowego limitu</strong>; subagenci Sonnet łącznie ok. 1,9 mln tokenów.</li>
@@ -145,7 +155,10 @@
   (function () {
     var b = document.getElementById("aboutBtn"), d = document.getElementById("aboutDlg");
     if (!b || !d) return;
-    b.addEventListener("click", function () { if (d.showModal) d.showModal(); else d.setAttribute("open", ""); });
+    function open(at) { if (d.showModal) { if (!d.open) d.showModal(); } else d.setAttribute("open", "");
+      var el = at && document.getElementById(at); if (el) el.scrollIntoView({ block: "start" }); else d.scrollTop = 0; }
+    b.addEventListener("click", function () { open(); });
+    var m = document.getElementById("mcpBtn"); if (m) m.addEventListener("click", function () { open("aboutMcp"); });
     d.addEventListener("click", function (e) { if (e.target === d) d.close(); });  // click on the backdrop closes
   })();
 </script>

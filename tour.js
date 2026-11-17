@@ -37,6 +37,8 @@
       x: () => (toolsInline()
         ? "Eksport wyników do CSV lub Markdown, link do bieżącego wyszukiwania i zmiana motywu. Klawisz ? pokazuje skróty klawiszowe."
         : "Przycisk ⋯ otwiera eksport wyników do CSV lub Markdown, link do bieżącego wyszukiwania, zmianę motywu i skróty klawiszowe (też pod klawiszem ?).") },
+    { t: "Serwer MCP – uchwały w Twoim asystencie AI", target: () => [$("mcpBtn")],
+      x: "Te same wyszukiwanie i dosłowne punkty z pinpointem są dostępne dla Claude jako serwer MCP – asystent przeszukuje uchwały i cytuje je wprost ze źródła. Jak to podłączyć, opisuje przycisk „MCP” w stopce." },
     { t: "To wszystko", x: "Przewodnik uruchomisz ponownie przyciskiem „Przewodnik” w nagłówku. Miłego szukania." },
   ];
 

@@ -461,3 +461,6 @@ body { padding-bottom: calc(var(--footbar-h) + env(safe-area-inset-bottom)); }
 .about-close { position: absolute; top: .4rem; right: .6rem; }
 .about-close button { background: none; border: 0; font-size: 1.6rem; line-height: 1; cursor: pointer; color: var(--ink-3); padding: .3rem .5rem; }
 .about-note { font-size: .88rem; color: var(--ink-4); }
+
+.footbar .fb-mcp { margin-left: auto; } .footbar .fb-mcp + .fb-about { margin-left: .9rem; }
+.about code { overflow-wrap: anywhere; }
