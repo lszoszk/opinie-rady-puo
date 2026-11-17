@@ -8,7 +8,7 @@
 <script>try{var t=localStorage.getItem("rpuo.theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="stylesheet" href="tokens.css?v=c1ccaf98">
 <link rel="stylesheet" href="fonts.css?v=cede2929">
-<link rel="stylesheet" href="app.css?v=3ac6a1bc">
+<link rel="stylesheet" href="app.css?v=e5fd392b">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
 <script src="static-api.js?v=1acf3a47"></script>
   <script src="app.js?v=4d4837a4" defer></script>
@@ -78,27 +78,6 @@
     <div id="try" class="try" hidden></div>
     <div id="results" class="results"></div>
     <div class="more-wrap"><button type="button" id="moreBtn" class="btn" hidden>Pokaż więcej</button></div>
-
-    <footer class="site-footer" aria-label="O narzędziu">
-      <p><strong>Przygotowane na Forum Podatkowe UAM, 19 listopada 2026 r.</strong> (wykład o sztucznej inteligencji w pracy prawników).</p>
-      <p>Autor: <strong>Łukasz Szoszkiewicz</strong> (Wydział Prawa i Administracji UAM). Narzędzie zbudowane 17 listopada 2026 r. w Claude Code (Anthropic): Claude Opus 5.5 jako główny agent, subagenci Claude Sonnet 5.5.</p>
-      <p><strong>Źródło danych:</strong> Ministerstwo Finansów, Rada do Spraw Przeciwdziałania Unikaniu Opodatkowania –
-        <a href="https://www.gov.pl/web/finanse/prace-rady2" rel="noopener">Prace Rady z podziałem na tematy i kadencje</a>
-        (opinie dotyczące GAAR i ograniczenia korzyści umownych, kadencje I–III; pobrane 17.11.2026). 74 uchwały, 1936 stron.</p>
-      <details class="footer-cost">
-        <summary>Zużyte zasoby</summary>
-        <ul>
-          <li>Praca: jeden dzień (17.11.2026, ok. 28 poleceń), od pobrania PDF-ów po wyszukiwanie semantyczne.</li>
-          <li>Plan Claude Max: ok. <strong>8 pp tygodniowego limitu</strong> (21% → 29%); subagenci Sonnet łącznie ok. 1,7 mln tokenów.</li>
-          <li>Voyage AI <code>voyage-4-large</code>: 1,6 mln tokenów (jednorazowe embeddingi 5623 fragmentów) + zapytania w trybie „Znaczenie”.</li>
-          <li>Jev (TypeSafe): 208 zapytań (kalibracja ról punktów).</li>
-          <li>OCR: Tesseract lokalnie (933 strony skanów, 7 min); kontrola modelem Chandra OCR 2: 0,06 h GPU A100 (Cyfronet Athena).</li>
-          <li>Hosting: GitHub Pages (strona) i maszyna wirtualna UAM (API wyszukiwania semantycznego).</li>
-        </ul>
-      </details>
-      <p class="footer-note">Opisy zespołów czynności, typy schematów i tagi to opracowanie (reguły + model językowy, z dosłownymi cytatami jako dowodem), nie treść uchwał. Tekst skanów pochodzi z OCR – przy cytowaniu sprawdź w PDF.
-        Kod i dane: <a href="https://github.com/lszoszk/opinie-rady-puo" rel="noopener">github.com/lszoszk/opinie-rady-puo</a>.</p>
-    </footer>
   </main>
 </div>
 <div id="sidebarBackdrop" class="backdrop-lite" hidden></div>
@@ -130,5 +109,45 @@
   <div id="mBody" class="modal-body"></div>
 </section>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<footer class="footbar" aria-label="O narzędziu">
+  <span class="fb-item">Opinie Rady PUO</span>
+  <span class="fb-item fb-wide">Forum Podatkowe UAM, 19.11.2026</span>
+  <span class="fb-item fb-wide">Ł. Szoszkiewicz</span>
+  <span class="fb-item">źródło: <a href="https://www.gov.pl/web/finanse/prace-rady2" rel="noopener">gov.pl (MF)</a></span>
+  <button type="button" class="fb-about" id="aboutBtn" aria-haspopup="dialog">O narzędziu</button>
+</footer>
+<dialog id="aboutDlg" class="about" aria-labelledby="aboutTitle">
+  <form method="dialog" class="about-close"><button aria-label="Zamknij">×</button></form>
+  <h2 id="aboutTitle">O narzędziu</h2>
+  <p><strong>Przygotowane na Forum Podatkowe UAM, 19 listopada 2026 r.</strong> (wykład o sztucznej inteligencji w pracy prawników). Autor: <strong>Łukasz Szoszkiewicz</strong> (Wydział Prawa i Administracji UAM).</p>
+  <p><strong>Źródło danych:</strong> Ministerstwo Finansów, Rada do Spraw Przeciwdziałania Unikaniu Opodatkowania – <a href="https://www.gov.pl/web/finanse/prace-rady2" rel="noopener">Prace Rady z podziałem na tematy i kadencje</a> (opinie dotyczące GAAR i ograniczenia korzyści umownych, kadencje I–III; pobrane 17.11.2026). 74 uchwały, 1936 stron.</p>
+  <h3>Jak powstało</h3>
+  <p>W jeden dzień (17.11.2026), w Claude Code (Anthropic): Claude Opus 5.5 jako główny agent, subagenci Claude Sonnet 5.5 do pisania interfejsu i czytania spraw. Każdy etap sprawdzany na próbkach, koszty zapisywane na bieżąco.</p>
+  <ol>
+    <li><strong>Pobranie</strong> 74 PDF-ów ze strony MF.</li>
+    <li><strong>OCR:</strong> 43 skany miały słabą warstwę tekstu – ponowny OCR Tesseractem (933 strony, 7 min); kontrolnie model Chandra OCR 2 na GPU A100 (Cyfronet Athena), zgodność 98%.</li>
+    <li><strong>Segmentacja</strong> na punkty uzasadnienia (pinpoint „pkt 41”), nagłówki, opinie, przypisy – regułami, bez modelu językowego; 5212 z 5223 punktów (brakujące to luki w samych uchwałach).</li>
+    <li><strong>Metadane:</strong> rozstrzygnięcie, podatek, lata, Podatnik – regułami; opisy zespołów czynności – subagenci Sonnet, każde twierdzenie z dosłownym cytatem jako dowodem (189/189 cytatów zgodnych); schematy optymalizacyjne A–I zatwierdzone przez autora.</li>
+    <li><strong>Role i warunki punktów</strong> z nagłówków uchwał; kalibracja modelem Jev (TypeSafe). <strong>Cytowania</strong> uchwał, TSUE, NSA/WSA, TK – regułami.</li>
+    <li><strong>Wyszukiwarka:</strong> lematy (simplemma), składnia AND/OR/NOT; tryb „Znaczenie” – embeddingi Voyage AI <code>voyage-4-large</code> + wyszukiwanie hybrydowe na maszynie wirtualnej UAM.</li>
+    <li><strong>Podgląd PDF</strong> z podświetleniem fragmentu – ze współrzędnych słów, nie z warstwy tekstu PDF.</li>
+  </ol>
+  <h3>Zużyte zasoby</h3>
+  <ul>
+    <li>Plan Claude Max: ok. <strong>8 pp tygodniowego limitu</strong>; subagenci Sonnet łącznie ok. 1,9 mln tokenów.</li>
+    <li>Voyage AI: 1,6 mln tokenów (jednorazowe embeddingi 5623 fragmentów) + zapytania w trybie „Znaczenie”.</li>
+    <li>Jev (TypeSafe): 208 zapytań · Chandra OCR 2: 0,06 h GPU A100 · Tesseract: lokalnie.</li>
+    <li>Hosting: GitHub Pages (strona), maszyna wirtualna UAM (API wyszukiwania semantycznego).</li>
+  </ul>
+  <p class="about-note">Opisy zespołów czynności, typy schematów i tagi to opracowanie (reguły + model językowy), nie treść uchwał. Tekst skanów pochodzi z OCR – przy cytowaniu sprawdź w PDF. Kod i dane: <a href="https://github.com/lszoszk/opinie-rady-puo" rel="noopener">github.com/lszoszk/opinie-rady-puo</a>.</p>
+</dialog>
+<script>
+  (function () {
+    var b = document.getElementById("aboutBtn"), d = document.getElementById("aboutDlg");
+    if (!b || !d) return;
+    b.addEventListener("click", function () { if (d.showModal) d.showModal(); else d.setAttribute("open", ""); });
+    d.addEventListener("click", function (e) { if (e.target === d) d.close(); });  // click on the backdrop closes
+  })();
+</script>
 </body>
 </html>
