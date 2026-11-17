@@ -2,8 +2,11 @@
 <html lang="pl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <title>Opinie Rady PUO – wyszukiwarka</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="fonts.css">
 <link rel="stylesheet" href="app.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
 <script src="static-api.js"></script>
@@ -12,16 +15,18 @@
 <body>
 <header class="top">
   <div class="top-row">
-    <h1 class="brand">Opinie Rady PUO</h1>
+    <h1 class="brand"><span class="brand-k">Rada do Spraw Przeciwdziałania Unikaniu Opodatkowania</span>Opinie Rady PUO</h1>
     <form id="searchForm" class="searchbox" role="search" autocomplete="off">
-      <input id="q" type="search" aria-label="Szukaj w uchwałach" placeholder="np. sztuczność znak towarowy, &quot;czynność odpowiednia&quot;" spellcheck="false">
+      <input id="q" type="search" enterkeyhint="search" aria-label="Szukaj w uchwałach" placeholder="np. &quot;czynność odpowiednia&quot;" spellcheck="false">
       <button type="submit" class="btn primary">Szukaj</button>
     </form>
-    <div class="seg" role="group" aria-label="Rodzaj wyników">
-      <button type="button" id="gDoc" aria-pressed="true">Uchwały</button>
-      <button type="button" id="gPara" aria-pressed="false">Punkty</button>
+    <div class="ctl-row">
+      <div class="seg" role="group" aria-label="Rodzaj wyników">
+        <button type="button" id="gDoc" aria-pressed="true">Uchwały</button>
+        <button type="button" id="gPara" aria-pressed="false">Punkty</button>
+      </div>
+      <button type="button" id="filtersBtn" class="btn filters-btn" aria-expanded="false" aria-controls="sidebar">Filtry</button>
     </div>
-    <button type="button" id="filtersBtn" class="btn filters-btn" aria-expanded="false" aria-controls="sidebar">Filtry</button>
   </div>
   <div class="top-sub">
     <span class="hint">Słowa = wszystkie w jednym punkcie, odmiana uwzględniona; <code>"fraza"</code> dosłownie.</span>
@@ -32,11 +37,14 @@
 <div class="layout">
   <aside id="sidebar" class="sidebar" aria-label="Filtry">
     <div class="sidebar-head">
-      <strong>Filtry</strong>
+      <strong class="sidebar-title">Filtry</strong>
       <button type="button" id="clearBtn" class="link">Wyczyść</button>
       <button type="button" id="sidebarClose" class="icon-btn only-narrow" aria-label="Zamknij filtry">×</button>
     </div>
-    <div id="facets"></div>
+    <div id="facets" class="facets"></div>
+    <div class="sidebar-foot only-narrow">
+      <button type="button" id="applyBtn" class="btn primary block">Pokaż wyniki</button>
+    </div>
   </aside>
   <main class="results-wrap">
     <div id="chips" class="chips" aria-label="Aktywne filtry"></div>
@@ -56,7 +64,6 @@
       <div id="dBadges" class="badges"></div>
       <button type="button" id="dClose" class="icon-btn" aria-label="Zamknij uchwałę">×</button>
     </div>
-    <div id="dMeta" class="dmeta"></div>
     <div class="dh-bar">
       <div class="seg" role="group" aria-label="Widok">
         <button type="button" id="vHtml" aria-pressed="true">HTML</button>
@@ -65,6 +72,7 @@
       <span id="dRecInfo" class="rec-info"></span>
       <span id="pageInd" class="page-ind" hidden></span>
     </div>
+    <details id="dMetaWrap" class="dmeta-wrap"><summary>Szczegóły uchwały</summary><div id="dMeta" class="dmeta"></div></details>
   </div>
   <div id="dBody" class="drawer-body"></div>
 </section>

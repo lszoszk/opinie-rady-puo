@@ -119,7 +119,9 @@
       box.append(h("button", { class: "chip", type: "button", "aria-label": `Usuń filtr ${title}: ${facetValueLabel(k, state.filters[k])}`, onclick: () => setFilter(k, state.filters[k]) },
         h("span", { class: "chip-k" }, title + ": "), facetValueLabel(k, state.filters[k]), h("span", { "aria-hidden": "true" }, " ×")));
     }
-    $("clearBtn").hidden = !Object.keys(state.filters).length;
+    const nf = Object.keys(state.filters).length;
+    $("clearBtn").hidden = !nf;
+    $("filtersBtn").textContent = nf ? `Filtry (${nf})` : "Filtry";
   }
   function setFilter(k, v) {
     const f = { ...state.filters };
@@ -150,8 +152,22 @@
   function snippetEl(item, doc, extra) {
     const where = item.part === "operative" ? "opinia" : item.part === "preamble" ? "nagłówek" : item.part === "note" ? "adnotacja" : item.part === "signature" ? "podpis" : (item.pkt != null ? `pkt ${item.pkt}` : "akapit");
     const lab = h("span", { class: "sn-lab" }, where + (item.page ? `, s. ${item.page}` : ""));
-    return h("button", { type: "button", class: "snippet", title: "Otwórz w uchwale", onclick: () => nav({ doc, rec: recToken(item.id) }) },
-      lab, h("span", { class: "sn-text", html: item.snippet || "" }), extra || null);
+    return h("div", { class: "snip" },
+      h("button", { type: "button", class: "snippet", title: "Otwórz w uchwale", onclick: () => nav({ doc, rec: recToken(item.id) }) },
+        lab, h("span", { class: "sn-text", html: item.snippet || "" }), extra || null));
+  }
+  // snippets are clamped to ~6 lines in CSS; add a "więcej" toggle where the text really overflows
+  function markClamps() {
+    document.querySelectorAll("#results .snip:not([data-cl])").forEach((sn) => {
+      const t = sn.querySelector(".sn-text");
+      if (!t || !t.clientHeight) return; // hidden for now; checked again when shown
+      sn.dataset.cl = "1";
+      if (t.scrollHeight <= t.clientHeight + 2) return;
+      const b = h("button", { type: "button", class: "snip-more", "aria-expanded": "false", onclick: () => {
+        const o = sn.classList.toggle("open"); b.textContent = o ? "mniej" : "więcej"; b.setAttribute("aria-expanded", String(o));
+      } }, "więcej");
+      sn.append(b);
+    });
   }
 
   function docCard(x) {
@@ -177,7 +193,7 @@
       const body = h("div", { class: "snips" }, snippetEl(x.best, x.doc_id));
       if (more.length) {
         moreBox = h("div", { class: "more-snips", hidden: true }, more.map((m) => snippetEl(m, m.doc_id || x.doc_id)));
-        const tb = h("button", { type: "button", class: "link more-toggle", "aria-expanded": "false", onclick: () => { moreBox.hidden = !moreBox.hidden; tb.setAttribute("aria-expanded", String(!moreBox.hidden)); tb.textContent = moreBox.hidden ? `+${more.length} trafień` : "Ukryj trafienia"; } }, `+${more.length} trafień`);
+        const tb = h("button", { type: "button", class: "link more-toggle", "aria-expanded": "false", onclick: () => { moreBox.hidden = !moreBox.hidden; tb.setAttribute("aria-expanded", String(!moreBox.hidden)); tb.textContent = moreBox.hidden ? `+${more.length} trafień` : "Ukryj trafienia"; requestAnimationFrame(markClamps); } }, `+${more.length} trafień`);
         body.append(tb, moreBox);
       }
       if (x.hits > 1 + more.length) body.append(h("div", { class: "muted small" }, `Łącznie punktów z trafieniem: ${x.hits}`));
@@ -213,6 +229,8 @@
     n.textContent = d.relaxed_or ? "Żaden punkt nie zawiera wszystkich słów – pokazuję dowolne." : "";
     if (!results.hits.length) box.append(h("p", { class: "empty" }, "Brak wyników. Spróbuj mniej słów albo usuń filtry."));
     $("moreBtn").hidden = results.hits.length >= total || !d.hits.length;
+    $("applyBtn").textContent = `Pokaż wyniki (${total})`;
+    requestAnimationFrame(markClamps);
   }
 
   // ---------- drawer ----------
@@ -230,6 +248,19 @@
     catch { const ta = h("textarea", { style: "position:fixed;opacity:0" }); ta.value = t; document.body.append(ta); ta.select(); try { document.execCommand("copy"); } catch {} ta.remove(); }
     toast("Skopiowano cytat");
   }
+
+  // metadata (>=900px) and TOC (>=1100px) are always open side/top blocks; below that they are collapsible <details>
+  const mqMeta = window.matchMedia("(min-width: 900px)"), mqToc = window.matchMedia("(min-width: 1100px)");
+  function syncDetails() {
+    const mw = $("dMetaWrap"); if (mw) mw.open = mqMeta.matches;
+    document.querySelectorAll("details.toc").forEach((t) => { t.open = mqToc.matches; });
+  }
+  mqMeta.addEventListener("change", syncDetails); mqToc.addEventListener("change", syncDetails);
+  document.addEventListener("toggle", (e) => {
+    const t = e.target;
+    if (t.id === "dMetaWrap" && mqMeta.matches && !t.open) t.open = true;
+    else if (t.classList && t.classList.contains("toc") && mqToc.matches && !t.open) t.open = true;
+  }, true);
 
   function openDrawerShell() {
     if ($("drawer").hidden) {
@@ -252,7 +283,7 @@
   async function openDoc(id) {
     openDrawerShell();
     drawer.doc = id; drawer.data = null; const tok = ++drawer.token;
-    $("dTitle").textContent = idLabel(id); $("dBadges").textContent = ""; $("dMeta").textContent = ""; $("dRecInfo").textContent = "";
+    $("dTitle").textContent = idLabel(id); $("dBadges").textContent = ""; $("dMeta").textContent = ""; $("dRecInfo").textContent = ""; syncDetails();
     $("dBody").textContent = "Ładuję…"; $("pageInd").hidden = true;
     const key = id + "|" + state.q;
     try {
@@ -294,7 +325,7 @@
     const r = drawer.data && state.rec ? drawer.data.records.find((x) => recToken(x.id) === state.rec) : null;
     if (!r) return;
     const w = r.part === "operative" ? "opinia" : r.part === "preamble" ? "nagłówek" : r.pkt != null ? `pkt ${r.pkt}` : "akapit";
-    box.append(h("span", null, "Wybrano: " + w + " "), h("button", { type: "button", class: "icon-btn small", "aria-label": "Odznacz punkt", onclick: () => nav({ rec: "" }) }, "×"));
+    box.append(h("span", null, h("span", { class: "ri-k" }, "Wybrano: "), w + " "), h("button", { type: "button", class: "icon-btn small", "aria-label": "Odznacz punkt", onclick: () => nav({ rec: "" }) }, "×"));
   }
 
   function showView(initial) {
@@ -383,10 +414,16 @@
     if (other.children.length) { other.prepend(h("h3", null, "Orzecznictwo i dokumenty")); rel.append(other); }
     flow.append(rel);
 
-    const nav_ = h("nav", { class: "toc", "aria-label": "Spis treści uchwały" }, h("div", { class: "toc-t" }, "Spis treści"),
-      toc.map((t) => h("a", { href: "#" + t.id, class: "toc-i l" + t.lvl, title: t.text, onclick: (e) => { e.preventDefault(); const el = document.getElementById(t.id); if (el) el.scrollIntoView({ block: "start" }); } }, t.text)));
+    const nav_ = h("details", { class: "toc" }, h("summary", { class: "toc-t" }, "Spis treści"),
+      h("nav", { class: "toc-list", "aria-label": "Spis treści uchwały" },
+        toc.map((t) => h("a", { href: "#" + t.id, class: "toc-i l" + t.lvl, title: t.text, onclick: (e) => {
+          e.preventDefault(); const el = document.getElementById(t.id);
+          if (!mqToc.matches) nav_.open = false;
+          if (el) el.scrollIntoView({ block: "start" });
+        } }, t.text))));
     body.append(nav_, flow);
     $("dBody").textContent = ""; $("dBody").append(body);
+    syncDetails();
     $("dBody").scrollTop = 0;
     flow.addEventListener("click", (e) => {
       const a = e.target.closest("a.fnref");
@@ -439,19 +476,25 @@
       drawer.pdf = { pdf, pages, els, scroller, wrap };
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const rendered = new Set();
+      const P = drawer.pdf; P.rendered = rendered; P.gen = 0; P.ratio = 0;
       drawer.io = new IntersectionObserver((entries) => {
         for (const en of entries) if (en.isIntersecting) {
           const el = en.target, n = +el.dataset.n;
           if (rendered.has(n)) continue; rendered.add(n);
+          const gen = P.gen;
           const pg = pages[n - 1], vp0 = pg.getViewport({ scale: 1 });
           const scale = (el.clientWidth / vp0.width) * dpr;
           const vp = pg.getViewport({ scale });
           const cv = document.createElement("canvas"); cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
-          pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise.then(() => { if (tok === drawer.token) { el.querySelector(".pdf-ph")?.remove(); el.prepend(cv); } }).catch(() => rendered.delete(n));
+          pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise.then(() => {
+            if (tok !== drawer.token || gen !== P.gen) return;
+            el.querySelector(".pdf-ph")?.remove(); el.querySelectorAll("canvas").forEach((c) => c.remove()); el.prepend(cv);
+          }).catch(() => rendered.delete(n));
         }
       }, { root: scroller, rootMargin: "1500px 0px" });
       els.forEach((e) => drawer.io.observe(e));
       scroller.onscroll = updatePageInd;
+      lastPdfW = scroller.clientWidth;
       await applyBoxes();
       updatePageInd();
     } catch (e) {
@@ -489,7 +532,19 @@
     let cur = 1;
     for (const el of P.els) { const r = el.getBoundingClientRect(); if (r.top <= mid) cur = +el.dataset.n; else break; }
     $("pageInd").textContent = `Strona ${cur} / ${P.els.length}`;
+    P.ratio = P.scroller.scrollTop / (P.scroller.scrollHeight || 1);
   }
+  // width change (rotation, window resize): re-render visible pages at the new width so the text stays sharp
+  let lastPdfW = 0, resizeT;
+  function redrawPdf() {
+    const P = drawer.pdf; if (!P || !drawer.io) return;
+    const w = P.scroller.clientWidth;
+    if (!w || Math.abs(w - lastPdfW) < 2) return;
+    lastPdfW = w; P.gen++; P.rendered.clear();
+    P.scroller.scrollTop = P.ratio * P.scroller.scrollHeight;
+    P.els.forEach((e) => { drawer.io.unobserve(e); drawer.io.observe(e); });
+  }
+  new ResizeObserver(() => { clearTimeout(resizeT); resizeT = setTimeout(redrawPdf, 200); }).observe($("dBody"));
 
   // ---------- apply state ----------
   let applied = { doc: "", rec: "", view: "html" };
@@ -513,6 +568,7 @@
   }
 
   // ---------- init ----------
+  const mqSheet = window.matchMedia("(min-width: 900px)");
   const typed = debounce(() => nav({ q: $("q").value.trim() }, true), 300);
   $("q").addEventListener("input", typed);
   $("searchForm").addEventListener("submit", (e) => { e.preventDefault(); typed.cancel(); const q = $("q").value.trim(); if (q === state.q) { lastKey = null; } nav({ q }, true); });
@@ -524,7 +580,14 @@
   $("vPdf").addEventListener("click", () => nav({ view: "pdf" }));
   $("dClose").addEventListener("click", () => nav({ doc: "", rec: "" }));
   $("backdrop").addEventListener("click", () => nav({ doc: "", rec: "" }));
-  const sidebar = (open) => { $("sidebar").classList.toggle("open", open); $("sidebarBackdrop").hidden = !open; $("filtersBtn").setAttribute("aria-expanded", String(open)); };
+  const sidebar = (open) => {
+    $("sidebar").classList.toggle("open", open); $("sidebarBackdrop").hidden = !open;
+    document.body.classList.toggle("noscroll-sheet", open);
+    $("filtersBtn").setAttribute("aria-expanded", String(open));
+    if (open) $("sidebarClose").focus(); else if (document.activeElement && $("sidebar").contains(document.activeElement)) $("filtersBtn").focus();
+  };
+  $("applyBtn").addEventListener("click", () => sidebar(false));
+  mqSheet.addEventListener("change", () => { if (!mqSheet.matches && $("sidebar").classList.contains("open")) sidebar(false); });
   $("filtersBtn").addEventListener("click", () => sidebar(!$("sidebar").classList.contains("open")));
   $("sidebarClose").addEventListener("click", () => sidebar(false));
   $("sidebarBackdrop").addEventListener("click", () => sidebar(false));
