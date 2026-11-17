@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>Opinie Rady PUO – wyszukiwarka</title>
+<script>try{var t=localStorage.getItem("rpuo.theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="fonts.css">
 <link rel="stylesheet" href="app.css">
@@ -17,8 +18,10 @@
   <div class="top-row">
     <h1 class="brand"><span class="brand-k">Rada do Spraw Przeciwdziałania Unikaniu Opodatkowania</span>Opinie Rady PUO</h1>
     <form id="searchForm" class="searchbox" role="search" autocomplete="off">
-      <input id="q" type="search" enterkeyhint="search" aria-label="Szukaj w uchwałach" placeholder="np. &quot;czynność odpowiednia&quot;" spellcheck="false">
+      <input id="q" type="search" enterkeyhint="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="recent" aria-label="Szukaj w uchwałach" placeholder="np. &quot;czynność odpowiednia&quot;" spellcheck="false">
+      <button type="button" id="helpBtn" class="btn help-btn" aria-label="Składnia wyszukiwania i skróty" title="Składnia wyszukiwania (?)">?</button>
       <button type="submit" class="btn primary">Szukaj</button>
+      <div id="recent" class="recent" role="listbox" aria-label="Ostatnie wyszukiwania" hidden></div>
     </form>
     <div class="ctl-row">
       <div class="seg" role="group" aria-label="Rodzaj wyników">
@@ -26,10 +29,18 @@
         <button type="button" id="gPara" aria-pressed="false">Punkty</button>
       </div>
       <button type="button" id="filtersBtn" class="btn filters-btn" aria-expanded="false" aria-controls="sidebar">Filtry</button>
+      <button type="button" id="toolsBtn" class="btn tools-btn" aria-haspopup="true" aria-expanded="false" aria-controls="tools" aria-label="Narzędzia" title="Narzędzia">&#8943;</button>
+      <div id="tools" class="tools" aria-label="Narzędzia">
+        <button type="button" class="tool" id="tCsv" title="Eksportuj wszystkie wyniki do CSV (Excel, separator ;)"><span class="tl-short">CSV</span><span class="tl-long">Eksport CSV</span></button>
+        <button type="button" class="tool" id="tMd" title="Eksportuj wszystkie wyniki do Markdown"><span class="tl-short">MD</span><span class="tl-long">Eksport Markdown</span></button>
+        <button type="button" class="tool" id="tLink" title="Kopiuj link do wyszukiwania"><span class="tl-short">Link</span><span class="tl-long">Kopiuj link do wyszukiwania</span></button>
+        <button type="button" class="tool" id="tTheme"><span class="tl-short" id="tThemeS">Motyw</span><span class="tl-long" id="tThemeL">Motyw</span></button>
+        <button type="button" class="tool only-narrow" id="tHelp"><span class="tl-long">Składnia i skróty</span></button>
+      </div>
     </div>
   </div>
   <div class="top-sub">
-    <span class="hint">Słowa = wszystkie w jednym punkcie, odmiana uwzględniona; <code>"fraza"</code> dosłownie.</span>
+    <span class="hint">Słowa = wszystkie w jednym punkcie, odmiana uwzględniona; <code>"fraza"</code> dosłownie; <code>OR</code>, <code>-słowo</code>, <code>sztuczn*</code> – <button type="button" class="link" id="hintHelp">pełna składnia</button>.</span>
     <span id="stats" class="stats"></span>
   </div>
 </header>
@@ -48,8 +59,17 @@
   </aside>
   <main class="results-wrap">
     <div id="chips" class="chips" aria-label="Aktywne filtry"></div>
-    <div id="summary" class="summary" aria-live="polite"></div>
+    <div id="histoMain" class="histo-main"></div>
+    <div class="resbar">
+      <div id="summary" class="summary" aria-live="polite"></div>
+      <div id="sortSeg" class="seg sort" role="group" aria-label="Sortowanie">
+        <button type="button" data-sort="rel" aria-pressed="false">Trafność</button>
+        <button type="button" data-sort="new" aria-pressed="false">Od najnowszych</button>
+        <button type="button" data-sort="old" aria-pressed="false">Od najstarszych</button>
+      </div>
+    </div>
     <div id="notice" class="notice" hidden></div>
+    <div id="try" class="try" hidden></div>
     <div id="results" class="results"></div>
     <div class="more-wrap"><button type="button" id="moreBtn" class="btn" hidden>Pokaż więcej</button></div>
   </main>
@@ -58,6 +78,7 @@
 
 <div id="backdrop" class="backdrop" hidden></div>
 <section id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle" hidden>
+  <div id="dResize" class="drawer-resize" role="separator" aria-orientation="vertical" aria-label="Szerokość panelu (strzałki zmieniają, Enter przywraca)" tabindex="0" title="Przeciągnij, aby zmienić szerokość; dwuklik – domyślna"></div>
   <div class="drawer-head">
     <div class="dh-top">
       <h2 id="dTitle" class="dtitle"></h2>
@@ -75,6 +96,11 @@
     <details id="dMetaWrap" class="dmeta-wrap"><summary>Szczegóły uchwały</summary><div id="dMeta" class="dmeta"></div></details>
   </div>
   <div id="dBody" class="drawer-body"></div>
+</section>
+<div id="modalBack" class="backdrop modal-back" hidden></div>
+<section id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle" hidden>
+  <div class="modal-head"><h2 id="mTitle">Składnia wyszukiwania</h2><button type="button" id="mClose" class="icon-btn" aria-label="Zamknij">×</button></div>
+  <div id="mBody" class="modal-body"></div>
 </section>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body>

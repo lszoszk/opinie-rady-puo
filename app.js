@@ -4,7 +4,7 @@
   const LIMIT = 20;
   const FACETS = [
     ["outcome", "Rozstrzygnięcie"], ["scheme", "Schemat optymalizacyjny"], ["tax", "Podatek"],
-    ["term", "Kadencja"], ["topic", "Temat"], ["role", "Rola punktu"], ["warunek", "Warunek"],
+    ["term", "Kadencja"], ["topic", "Temat"], ["role", "Rola punktu"], ["warunek", "Warunek"], ["instrument", "Instrumenty"],
   ];
   const FKEYS = FACETS.map((f) => f[0]);
   const OUTCOME_NAME = {
@@ -60,47 +60,92 @@
   const outcomeBadge = (key, label) => h("span", { class: `badge ${OUTCOME_CLS[key] || ""}`, title: "Rozstrzygnięcie: zastosowanie art. 119a " + (OUTCOME_NAME[key] || label || key) }, OUTCOME_NAME[key] || label || key);
   const schemeBadge = (k) => k ? h("span", { class: "badge scheme", title: schemeNames[k] || "Schemat optymalizacyjny " + k }, k) : null;
 
+  // ---------- storage (every access guarded: works without localStorage) ----------
+  const ls = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} },
+  };
+  const plUchwal = (n) => (n === 1 ? "uchwała" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? "uchwały" : "uchwał");
+  const SORTS = ["rel", "new", "old"];
+
   // ---------- state & hash ----------
-  const state = { q: "", group: "doc", filters: {}, doc: "", rec: "", view: "html" };
+  const state = { q: "", group: "doc", sort: "", filters: {}, yf: "", yt: "", mode: { warunek: "any", instrument: "any" }, doc: "", rec: "", view: "html" };
+  const yearOk = (v) => (/^\d{4}$/.test(v || "") ? v : "");
   function parseHash() {
     const p = new URLSearchParams(location.hash.replace(/^#/, ""));
-    const s = { q: p.get("q") || "", group: p.get("group") === "para" ? "para" : "doc", filters: {}, doc: p.get("doc") || "", rec: p.get("rec") || "", view: p.get("view") === "pdf" ? "pdf" : "html" };
-    for (const k of FKEYS) if (p.get(k)) s.filters[k] = p.get(k);
+    const s = { q: p.get("q") || "", group: p.get("group") === "para" ? "para" : "doc", sort: SORTS.includes(p.get("sort")) ? p.get("sort") : "", filters: {},
+      yf: yearOk(p.get("year_from")), yt: yearOk(p.get("year_to")),
+      mode: { warunek: p.get("mode_warunek") === "all" ? "all" : "any", instrument: p.get("mode_instrument") === "all" ? "all" : "any" },
+      doc: p.get("doc") || "", rec: p.get("rec") || "", view: p.get("view") === "pdf" ? "pdf" : "html" };
+    for (const k of FKEYS) { const v = p.getAll(k).filter(Boolean); if (v.length) s.filters[k] = [...new Set(v)]; }
     if (!s.doc) s.rec = "";
     return s;
   }
-  function buildHash(s) {
+  // search params shared by the hash and /api/search (arrays = repeated keys)
+  function searchParams(s) {
     const p = new URLSearchParams();
     if (s.q) p.set("q", s.q);
     if (s.group === "para") p.set("group", "para");
-    for (const k of FKEYS) if (s.filters[k]) p.set(k, s.filters[k]);
+    if (s.sort) p.set("sort", s.sort);
+    for (const k of FKEYS) for (const v of s.filters[k] || []) p.append(k, v);
+    if (s.yf) p.set("year_from", s.yf);
+    if (s.yt) p.set("year_to", s.yt);
+    if (s.mode.warunek === "all") p.set("mode_warunek", "all");
+    if (s.mode.instrument === "all") p.set("mode_instrument", "all");
+    return p;
+  }
+  function buildHash(s) {
+    const p = searchParams(s);
     if (s.doc) { p.set("doc", s.doc); if (s.rec) p.set("rec", s.rec); if (s.view === "pdf") p.set("view", "pdf"); }
     return p.toString();
   }
+  const effSort = (s = state) => (s.q ? (s.sort || "rel") : (s.sort === "old" ? "old" : "new"));
   // changes -> new hash; push (default) creates history entry; replace edits current
   function nav(changes, replace) {
     const next = { ...state, ...changes };
-    if (changes.filters) next.filters = changes.filters;
     if (!next.doc) next.rec = "";
     const hash = buildHash(next);
     if (hash === location.hash.replace(/^#/, "")) { if (replace) apply(); return; }
     if (replace) { history.replaceState(null, "", "#" + hash); apply(); }
     else location.hash = hash; // hashchange -> apply
   }
-  const searchKey = (s) => JSON.stringify([s.q, s.group, FKEYS.map((k) => s.filters[k] || "")]);
+  const searchKey = (s) => JSON.stringify([s.q, s.group, effSort(s), FKEYS.map((k) => s.filters[k] || []), s.yf, s.yt, s.mode]);
+  const nActive = (s = state) => FKEYS.reduce((n, k) => n + (s.filters[k] || []).length, 0) + (s.yf || s.yt ? 1 : 0);
+
+  // ---------- recent searches ----------
+  const RECENT_KEY = "rpuo.recent";
+  const getRecent = () => { try { const a = JSON.parse(ls.get(RECENT_KEY) || "[]"); return Array.isArray(a) ? a.filter((x) => typeof x === "string").slice(0, 10) : []; } catch { return []; } };
+  function saveRecent(q) {
+    q = (q || "").trim(); if (!q) return;
+    const a = getRecent().filter((x) => x.toLowerCase() !== q.toLowerCase()); a.unshift(q);
+    ls.set(RECENT_KEY, JSON.stringify(a.slice(0, 10)));
+  }
+  const SAMPLES = ["znak towarowy", "\"czynność odpowiednia\"", "fundacja OR darowizna", "sztuczn*", "znak towarowy -licencja"];
+  // run a query as an explicit action (examples, history, "Spróbuj")
+  function runQuery(q) { $("q").value = q; saveRecent(q); closeRecent(); nav({ q }, false); }
 
   // ---------- search ----------
   let results = { hits: [], total: 0, offset: 0 }, searchCtl = null, lastKey = null;
+  const apiParams = (extra) => { const p = searchParams(state); p.set("sort", effSort()); p.set("group", state.group); for (const [k, v] of Object.entries(extra)) p.set(k, v); return p; };
+  let searchSeq = 0;
   async function runSearch(append) {
+    const seq = ++searchSeq;
     if (searchCtl) searchCtl.abort();
     searchCtl = new AbortController();
     const offset = append ? results.hits.length : 0;
-    const p = new URLSearchParams({ q: state.q, group: state.group, limit: LIMIT, offset });
-    for (const k of FKEYS) if (state.filters[k]) p.set(k, state.filters[k]);
+    const p = apiParams({ limit: LIMIT, offset });
     if (!append) $("summary").textContent = "Szukam…";
     try {
       const d = await getJSON("/api/search?" + p, searchCtl.signal);
       learnSchemes(d.hits);
+      // counts of a facet with its own selection ignore that selection, so more values can be added (OR within a facet)
+      if (!append) await Promise.all(FKEYS.filter((k) => (state.filters[k] || []).length).map(async (k) => {
+        const s2 = { ...state, filters: { ...state.filters } }; delete s2.filters[k];
+        const p2 = searchParams(s2); p2.set("sort", effSort()); p2.set("group", state.group); p2.set("limit", 0);
+        try { const o = await getJSON("/api/search?" + p2, searchCtl.signal); if (o.facets && o.facets[k]) d.facets[k] = o.facets[k]; } catch (e) { if (e.name === "AbortError") throw e; }
+      }));
+      if (seq !== searchSeq) return;
       if (append) { results.hits = results.hits.concat(d.hits); }
       else { results = { hits: d.hits, offset: 0 }; }
       results.d = d;
@@ -112,41 +157,103 @@
     }
   }
 
+  const YEARS = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
+  function chipBtn(title, label, on) {
+    return h("button", { class: "chip", type: "button", "aria-label": `Usuń filtr ${title}: ${label}`, onclick: on },
+      h("span", { class: "chip-k" }, title + ": "), label, h("span", { "aria-hidden": "true" }, " ×"));
+  }
   function renderChips() {
     const box = $("chips"); box.textContent = "";
-    for (const k of FKEYS) if (state.filters[k]) {
+    for (const k of FKEYS) {
       const title = FACETS.find((f) => f[0] === k)[1];
-      box.append(h("button", { class: "chip", type: "button", "aria-label": `Usuń filtr ${title}: ${facetValueLabel(k, state.filters[k])}`, onclick: () => setFilter(k, state.filters[k]) },
-        h("span", { class: "chip-k" }, title + ": "), facetValueLabel(k, state.filters[k]), h("span", { "aria-hidden": "true" }, " ×")));
+      for (const v of state.filters[k] || []) box.append(chipBtn(title, facetValueLabel(k, v), () => setFilter(k, v)));
     }
-    const nf = Object.keys(state.filters).length;
+    if (state.yf || state.yt) {
+      const a = state.yf || state.yt, b = state.yt || state.yf;
+      box.append(chipBtn("Lata", a === b ? a : `${a}–${b}`, () => setYears("", "")));
+    }
+    const nf = nActive();
+    if (nf) box.append(h("button", { type: "button", class: "link chips-clear", onclick: clearAll }, "Wyczyść"));
     $("clearBtn").hidden = !nf;
     $("filtersBtn").textContent = nf ? `Filtry (${nf})` : "Filtry";
   }
+  function clearAll() { nav({ filters: {}, yf: "", yt: "", mode: { warunek: "any", instrument: "any" } }); }
   function setFilter(k, v) {
-    const f = { ...state.filters };
-    if (f[k] === v) delete f[k]; else f[k] = v;
-    nav({ filters: f }, true);
+    const cur = state.filters[k] || [], f = { ...state.filters };
+    const next = cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v];
+    if (next.length) f[k] = next; else delete f[k];
+    nav({ filters: f });
   }
+  const setYears = (yf, yt) => nav({ yf: String(yf || ""), yt: String(yt || "") });
 
+  // ----- year histogram -----
+  let lastYear = {};
+  function buildHisto(counts) {
+    const years = [...new Set([...YEARS, ...Object.keys(counts).map(Number)])].sort((a, b) => a - b);
+    const max = Math.max(1, ...years.map((y) => counts[y] || 0));
+    const lo = +state.yf || +state.yt || 0, hi = +state.yt || +state.yf || 0, ranged = !!(lo || hi);
+    const bars = h("div", { class: "hbars" }, years.map((y) => {
+      const n = counts[y] || 0, on = ranged && y >= lo && y <= hi;
+      return h("button", { type: "button", class: "hbar" + (n ? "" : " zero"), "aria-pressed": String(on), "aria-label": `${y}: ${n} ${plUchwal(n)}`,
+        title: "Klik: tylko ten rok · Shift+klik: rozszerz zakres", onclick: (e) => {
+          if (e.shiftKey && ranged) setYears(Math.min(lo, y), Math.max(hi, y));
+          else if (lo === y && hi === y) setYears("", "");
+          else setYears(y, y);
+        } },
+        h("span", { class: "hb-n", "aria-hidden": "true" }, String(n)),
+        h("span", { class: "hb-track", "aria-hidden": "true" }, h("span", { class: "hb-fill", style: `height:${n ? Math.max(4, Math.round((n / max) * 100)) : 0}%` })),
+        h("span", { class: "hb-y", "aria-hidden": "true" }, String(y)));
+    }));
+    return h("div", { class: "histo", role: "group", "aria-label": "Uchwały według roku" },
+      h("div", { class: "histo-h" }, h("span", null, "Rok uchwały"), h("button", { type: "button", class: "link tiny", hidden: !ranged, onclick: () => setYears("", "") }, "wszystkie lata")), bars);
+  }
+  function renderHisto() { const m = $("histoMain"); m.textContent = ""; m.append(buildHisto(lastYear)); }
+
+  // ----- facets -----
+  const facetFind = {}, facetClosed = {};
+  const NORM = (s) => (s || "").toLowerCase();
   function renderFacets(facets) {
-    const box = $("facets"); box.textContent = "";
+    lastYear = facets.year || {};
+    renderHisto();
+    const box = $("facets");
+    const focusKey = document.activeElement && box.contains(document.activeElement) ? document.activeElement.dataset.fk : null;
+    const scroller = window.matchMedia("(min-width: 900px)").matches ? $("sidebar") : box, st = scroller.scrollTop;
+    const frag = document.createDocumentFragment();
+    frag.append(h("div", { class: "histo-side" }, buildHisto(lastYear)));
     for (const [k, title] of FACETS) {
       const data = { ...(facets[k] || {}) };
-      const active = state.filters[k];
-      if (active && !(active in data)) data[active] = 0;
-      let keys = Object.keys(data);
+      const act = state.filters[k] || [];
+      for (const a of act) if (!(a in data)) data[a] = 0;
+      const keys = Object.keys(data);
       if (!keys.length) continue;
       if (k === "scheme" || k === "term") keys.sort();
       else keys.sort((a, b) => data[b] - data[a] || a.localeCompare(b, "pl"));
-      const det = h("details", { class: "facet", open: true }, h("summary", null, title));
+      const closed = k in facetClosed ? facetClosed[k] : (k === "instrument" || k === "role") && !act.length;
+      const det = h("details", { class: "facet", open: !closed, "data-facet": k, ontoggle: (e) => { facetClosed[k] = !e.target.open; } },
+        h("summary", null, title, act.length ? h("span", { class: "sel-n" }, ` (${act.length})`) : null));
+      if (k === "warunek" || k === "instrument") {
+        const mk = (val, text, tip) => h("button", { type: "button", "aria-pressed": String(state.mode[k] === val), title: tip, onclick: () => nav({ mode: { ...state.mode, [k]: val } }) }, text);
+        det.append(h("div", { class: "facet-tools" },
+          h("div", { class: "seg mini", role: "group", "aria-label": `Dopasowanie: ${title}` }, mk("any", "którykolwiek", "Uchwały z którąkolwiek z wybranych wartości"), mk("all", "wszystkie", "Uchwały ze wszystkimi wybranymi wartościami")),
+          h("input", { type: "search", class: "facet-find", "aria-label": `Filtruj listę: ${title}`, placeholder: "Filtruj listę…", value: facetFind[k] || "", spellcheck: "false", "data-fk": "find|" + k,
+            oninput: (e) => { facetFind[k] = e.target.value; applyFind(det, k); } })));
+      }
       const ul = h("ul", { class: "facet-list" });
       for (const v of keys) {
-        ul.append(h("li", null, h("button", { type: "button", class: "facet-item" + (active === v ? " on" : ""), "aria-pressed": active === v ? "true" : "false", title: facetValueLabel(k, v), onclick: () => setFilter(k, v) },
-          h("span", { class: "fl" }, facetValueLabel(k, v)), h("span", { class: "fc" }, String(data[v])))));
+        const on = act.includes(v), lab = facetValueLabel(k, v);
+        ul.append(h("li", { "data-l": NORM(lab) }, h("label", { class: "facet-item" + (on ? " on" : ""), title: lab },
+          h("input", { type: "checkbox", checked: on, "data-fk": k + "|" + v, onchange: () => setFilter(k, v) }),
+          h("span", { class: "fl" }, lab), h("span", { class: "fc" }, String(data[v])))));
       }
-      det.append(ul); box.append(det);
+      det.append(ul); applyFind(det, k); frag.append(det);
     }
+    box.replaceChildren(frag);
+    scroller.scrollTop = st;
+    if (focusKey) { const el = [...box.querySelectorAll("[data-fk]")].find((x) => x.dataset.fk === focusKey); if (el) el.focus({ preventScroll: true }); }
+  }
+  function applyFind(det, k) {
+    const t = NORM(facetFind[k]).trim();
+    det.querySelectorAll(".facet-list li").forEach((li) => { li.hidden = !!t && !li.dataset.l.includes(t) && !li.querySelector("input").checked; });
   }
 
   function snippetEl(item, doc, extra) {
@@ -223,11 +330,14 @@
     if (!appended) box.textContent = "";
     (appended || results.hits).forEach((x) => box.append(para ? paraCard(x) : docCard(x)));
     const browse = !state.q;
-    $("summary").textContent = (para ? `Punkty: ${d.total_unique ?? d.total_paragraphs}` + (d.total_unique != null && d.total_unique !== d.total_paragraphs ? ` (z powtórzeniami w seriach ${d.total_paragraphs})` : "") : `Uchwały: ${d.total_groups ?? d.total_docs}` + (d.total_docs != null && d.total_groups != null && d.total_docs !== d.total_groups ? ` (w seriach łącznie ${d.total_docs})` : "") + `, punkty z trafieniem: ${d.total_paragraphs}`) + (browse ? " · przeglądanie, od najnowszej" : "");
+    $("summary").textContent = (para ? `Punkty: ${d.total_unique ?? d.total_paragraphs}` + (d.total_unique != null && d.total_unique !== d.total_paragraphs ? ` (z powtórzeniami w seriach ${d.total_paragraphs})` : "") : `Uchwały: ${d.total_groups ?? d.total_docs}` + (d.total_docs != null && d.total_groups != null && d.total_docs !== d.total_groups ? ` (w seriach łącznie ${d.total_docs})` : "") + `, punkty z trafieniem: ${d.total_paragraphs}`) + (browse ? " · przeglądanie" : "");
     const n = $("notice");
-    n.hidden = !d.relaxed_or;
-    n.textContent = d.relaxed_or ? "Żaden punkt nie zawiera wszystkich słów – pokazuję dowolne." : "";
+    const relaxed = d.relaxed_or && results.hits.length > 0;
+    n.hidden = !relaxed;
+    n.textContent = relaxed ? "Żaden punkt nie zawiera wszystkich słów – pokazuję dowolne." : "";
+    if (relaxed) n.append(" ", h("button", { type: "button", class: "link", onclick: () => openModal() }, "Co to znaczy?"));
     if (!results.hits.length) box.append(h("p", { class: "empty" }, "Brak wyników. Spróbuj mniej słów albo usuń filtry."));
+    $("try").hidden = !!(state.q && results.hits.length);
     $("moreBtn").hidden = results.hits.length >= total || !d.hits.length;
     $("applyBtn").textContent = `Pokaż wyniki (${total})`;
     requestAnimationFrame(markClamps);
@@ -243,10 +353,10 @@
     if (r.pkt != null) return base + `, pkt ${r.pkt}`;
     return base + `, s. ${r.page_from}`;
   }
-  async function copyText(t) {
+  async function copyText(t, msg) {
     try { await navigator.clipboard.writeText(t); }
     catch { const ta = h("textarea", { style: "position:fixed;opacity:0" }); ta.value = t; document.body.append(ta); ta.select(); try { document.execCommand("copy"); } catch {} ta.remove(); }
-    toast("Skopiowano cytat");
+    toast(msg || "Skopiowano cytat");
   }
 
   // metadata (>=900px) and TOC (>=1100px) are always open side/top blocks; below that they are collapsible <details>
@@ -548,11 +658,19 @@
 
   // ---------- apply state ----------
   let applied = { doc: "", rec: "", view: "html" };
+  function renderControls() {
+    $("gDoc").setAttribute("aria-pressed", String(state.group === "doc")); $("gPara").setAttribute("aria-pressed", String(state.group === "para"));
+    const es = effSort();
+    document.querySelectorAll("#sortSeg button").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.sort === es));
+      if (b.dataset.sort === "rel") { b.disabled = !state.q; b.title = state.q ? "" : "Trafność dotyczy tylko wyszukiwania ze słowami"; }
+    });
+  }
   function apply() {
     const s = parseHash();
     Object.assign(state, s);
     if (document.activeElement !== $("q") && $("q").value !== s.q) $("q").value = s.q;
-    $("gDoc").setAttribute("aria-pressed", String(s.group === "doc")); $("gPara").setAttribute("aria-pressed", String(s.group === "para"));
+    renderControls();
     const key = searchKey(s);
     if (key !== lastKey) { lastKey = key; runSearch(false); }
     if (!s.doc) { closeDrawerShell(); }
@@ -567,14 +685,155 @@
     applied = { doc: s.doc, rec: s.rec, view: s.view };
   }
 
+  // ---------- modal: syntax help + shortcuts ----------
+  const modal = { lastFocus: null, built: false };
+  const isModalOpen = () => !$("modal").hidden;
+  function buildModal() {
+    if (modal.built) return; modal.built = true;
+    const ex = (q) => h("button", { type: "button", class: "ex", title: "Uruchom to wyszukiwanie", onclick: () => { closeModal(true); runQuery(q); } }, q);
+    const row = (op, what, ...ex_) => h("tr", null, h("td", null, h("code", null, op)), h("td", null, what), h("td", { class: "exs" }, ...ex_.map(ex)));
+    const kb = (k, what) => h("tr", null, h("td", null, h("kbd", null, k)), h("td", null, what));
+    $("mBody").append(
+      h("p", { class: "muted" }, "Kliknij przykład, aby go uruchomić."),
+      h("div", { class: "tbl-wrap" }, h("table", { class: "ref" },
+        h("thead", null, h("tr", null, h("th", null, "Operator"), h("th", null, "Znaczenie"), h("th", null, "Przykład"))),
+        h("tbody", null,
+          row("słowa (spacja), AND", "wszystkie słowa w jednym punkcie (domyślnie)", "znak towarowy"),
+          row("\"fraza\"", "dokładna fraza, w podanej kolejności", "\"czynność odpowiednia\""),
+          row("OR", "którekolwiek ze słów", "fundacja OR darowizna"),
+          row("NOT, -słowo", "wyklucza punkty z tym słowem", "znak towarowy NOT licencja", "znak towarowy -licencja"),
+          row("słowo*", "początek wyrazu (sztuczny, sztuczność…)", "sztuczn*"),
+          row("( )", "grupowanie operatorów", "(fundusz OR fundacja) AND \"vacatio legis\"")))),
+      h("ul", { class: "help-notes" },
+        h("li", null, h("strong", null, "Odmiana uwzględniona. "), "Słowa są sprowadzane do formy podstawowej: „czynności”, „czynnością” i „czynność” to to samo słowo."),
+        h("li", null, h("strong", null, "Wszystkie słowa w jednym punkcie. "), "Zapytanie ", h("code", null, "znak towarowy"), " znajdzie punkty uchwały (lub opinię), w których występują oba słowa – nie uchwały, które zawierają je w różnych miejscach."),
+        h("li", null, h("strong", null, "Operatory wielkimi literami. "), h("code", null, "AND"), ", ", h("code", null, "OR"), ", ", h("code", null, "NOT"), "; małymi literami to zwykłe słowa."),
+        h("li", null, h("strong", null, "Komunikat „Żaden punkt nie zawiera wszystkich słów – pokazuję dowolne”"), " (", h("code", null, "relaxed_or"), "). Jeśli zwykłe zapytanie (bez operatorów) z kilku słów nie znalazło żadnego punktu ze wszystkimi słowami, wyszukiwarka pokazuje punkty z którymkolwiek z nich. Żeby wymusić wszystkie słowa, użyj ", h("code", null, "AND"), " albo cudzysłowu."),
+        h("li", null, h("strong", null, "Filtry. "), "Kilka wartości w jednym filtrze to „lub”; dla Warunku i Instrumentów można przełączyć na „wszystkie”. Słupek roku: klik = ten rok, Shift+klik = rozszerz zakres.")),
+      h("h3", null, "Skróty klawiaturowe"),
+      h("div", { class: "tbl-wrap" }, h("table", { class: "ref" }, h("tbody", null,
+        kb("/", "przejdź do pola wyszukiwania"), kb("?", "ta pomoc (składnia i skróty)"), kb("Esc", "zamknij okno, panel uchwały lub filtry"),
+        kb("g", "przełącz widok Uchwały / Punkty"), kb("↑ ↓ Enter", "wybór z ostatnich wyszukiwań"))))
+    );
+  }
+  function openModal() {
+    buildModal();
+    if (!isModalOpen()) { modal.lastFocus = document.activeElement; $("modal").hidden = false; $("modalBack").hidden = false; document.body.classList.add("noscroll"); }
+    $("mClose").focus();
+  }
+  function closeModal(noFocus) {
+    if (!isModalOpen()) return;
+    $("modal").hidden = true; $("modalBack").hidden = true;
+    if ($("drawer").hidden && !$("sidebar").classList.contains("open")) document.body.classList.remove("noscroll");
+    if (!noFocus && modal.lastFocus && modal.lastFocus.focus) try { modal.lastFocus.focus(); } catch {}
+  }
+
+  // ---------- recent searches dropdown ----------
+  const recent = { idx: -1, items: [] };
+  function renderRecent() {
+    const box = $("recent"), t = $("q").value.trim().toLowerCase();
+    recent.items = getRecent().filter((x) => !t || (x.toLowerCase().includes(t) && x.toLowerCase() !== t));
+    recent.idx = -1; box.textContent = "";
+    if (!recent.items.length) { closeRecent(); return; }
+    box.append(h("div", { class: "recent-h" }, h("span", null, "Ostatnie wyszukiwania"),
+      h("button", { type: "button", class: "link tiny", onclick: () => { ls.del(RECENT_KEY); closeRecent(); toast("Wyczyszczono historię"); } }, "wyczyść historię")));
+    recent.items.forEach((x, i) => box.append(h("div", { class: "recent-i", role: "option", id: "rec-opt-" + i, "aria-selected": "false",
+      onmousedown: (e) => e.preventDefault(), onclick: () => runQuery(x) }, x)));
+    box.hidden = false; $("q").setAttribute("aria-expanded", "true");
+  }
+  function closeRecent() { $("recent").hidden = true; $("q").setAttribute("aria-expanded", "false"); $("q").removeAttribute("aria-activedescendant"); recent.idx = -1; }
+  function moveRecent(d) {
+    const n = recent.items.length; if (!n) return;
+    recent.idx = ((recent.idx + 1 + d + n + 1) % (n + 1)) - 1;  // -1 = none
+    $("recent").querySelectorAll(".recent-i").forEach((el, i) => { el.classList.toggle("on", i === recent.idx); el.setAttribute("aria-selected", String(i === recent.idx)); });
+    if (recent.idx >= 0) $("q").setAttribute("aria-activedescendant", "rec-opt-" + recent.idx); else $("q").removeAttribute("aria-activedescendant");
+  }
+
+  // ---------- tools: export, link, theme, menu ----------
+  const trim600 = (t) => { t = (t || "").replace(/\s+/g, " ").trim(); if (t.length <= 600) return t; const c = t.slice(0, 600), i = c.lastIndexOf(" "); return c.slice(0, i > 400 ? i : 600) + "…"; };
+  const pageBase = () => location.href.split("#")[0];
+  function hitInfo(x) {
+    const doc = x.doc_id, b = x.best || x, m = /rpuo-(\d{4})-(\d+)/.exec(doc) || [];
+    const part = b.part, pkt = b.pkt, page = b.page;
+    const where = part === "operative" ? "opinia" : pkt != null ? `pkt ${pkt}` : part === "preamble" ? "nagłówek" : page ? `s. ${page}` : "akapit";
+    const cite = `Uchwała Rady do Spraw Przeciwdziałania Unikaniu Opodatkowania nr ${+m[2]}/${m[1]} z ${fmtDate(x.date)} r., ${where}`;
+    const link = `${pageBase()}#doc=${encodeURIComponent(doc)}&rec=${encodeURIComponent(recToken(b.id))}`;
+    const sc = x.scheme_type;
+    return { doc, where, cite, link, date: fmtDate(x.date), outcome: OUTCOME_NAME[x.outcome] || x.outcome_label || x.outcome || "",
+      scheme: sc ? (schemeNames[sc] ? `${sc} – ${schemeNames[sc]}` : sc) : "", role: b.role || "", text: trim600(b.text || "") };
+  }
+  const csvCell = (v) => { v = String(v ?? ""); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[";\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  function download(name, mime, text) {
+    const blob = new Blob([text], { type: mime }), a = h("a", { href: URL.createObjectURL(blob), download: name });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+  async function exportResults(kind) {
+    closeTools(); toast("Przygotowuję eksport…");
+    try {
+      const d = await getJSON("/api/search?" + apiParams({ limit: 10000, offset: 0 }));
+      learnSchemes(d.hits);
+      const rows = d.hits.map(hitInfo), stamp = new Date().toISOString().slice(0, 10);
+      if (!rows.length) { toast("Brak wyników do eksportu"); return; }
+      if (kind === "csv") {
+        const head = ["uchwała", "data", "pkt/opinia", "rozstrzygnięcie", "schemat", "rola", "fragment", "link"];
+        const lines = [head, ...rows.map((r) => [idLabel(r.doc), r.date, r.where, r.outcome, r.scheme, r.role, r.text, r.link])].map((l) => l.map(csvCell).join(";"));
+        download(`opinie-rady-puo-${stamp}.csv`, "text/csv;charset=utf-8", "﻿" + lines.join("\r\n") + "\r\n");
+      } else {
+        const md = [`# Opinie Rady PUO – wyniki wyszukiwania`, "", `Zapytanie: ${state.q ? "`" + state.q + "`" : "(wszystkie)"}; wyników: ${rows.length}; stan na ${fmtDate(stamp)}.`, "",
+          ...rows.map((r) => `- ${r.cite}: „${r.text}” ([link](${r.link}))`)];
+        download(`opinie-rady-puo-${stamp}.md`, "text/markdown;charset=utf-8", md.join("\n") + "\n");
+      }
+      toast(`Wyeksportowano: ${rows.length}`);
+    } catch (e) { toast("Błąd eksportu: " + e.message); }
+  }
+  const THEME_KEY = "rpuo.theme", THEMES = ["auto", "light", "dark"], THEME_NAME = { auto: "auto", light: "jasny", dark: "ciemny" };
+  function applyTheme(t, persist) {
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; else { t = "auto"; document.documentElement.removeAttribute("data-theme"); }
+    if (persist) { if (t === "auto") ls.del(THEME_KEY); else ls.set(THEME_KEY, t); }
+    $("tThemeS").textContent = "◐ " + THEME_NAME[t]; $("tThemeL").textContent = "Motyw: " + THEME_NAME[t];
+    $("tTheme").setAttribute("aria-label", `Motyw: ${THEME_NAME[t]} (kliknij, aby zmienić)`); $("tTheme").title = `Motyw: ${THEME_NAME[t]} – kliknij, aby zmienić`;
+    $("tTheme").dataset.theme = t;
+  }
+  const toolsOpen = () => $("tools").classList.contains("open");
+  function closeTools(focusBtn) {
+    $("tools").classList.remove("open"); $("toolsBtn").setAttribute("aria-expanded", "false");
+    if (focusBtn) $("toolsBtn").focus();
+  }
+
+  // ---------- drawer width (desktop >= 1100px) ----------
+  const DW_KEY = "rpuo.drawerw", mqWide = window.matchMedia("(min-width: 1100px)");
+  const clampVw = (v) => Math.min(85, Math.max(40, v));
+  function setDrawerW(vw, persist) {
+    const d = $("drawer");
+    if (vw == null) { d.classList.remove("custom"); d.style.removeProperty("--dw"); $("dResize").removeAttribute("aria-valuenow"); if (persist) ls.del(DW_KEY); return; }
+    vw = clampVw(vw); d.classList.add("custom"); d.style.setProperty("--dw", vw.toFixed(2) + "vw"); $("dResize").setAttribute("aria-valuenow", String(Math.round(vw)));
+    if (persist) ls.set(DW_KEY, vw.toFixed(2));
+  }
+  const curVw = () => ($("drawer").getBoundingClientRect().width / window.innerWidth) * 100;
+
   // ---------- init ----------
   const mqSheet = window.matchMedia("(min-width: 900px)");
   const typed = debounce(() => nav({ q: $("q").value.trim() }, true), 300);
-  $("q").addEventListener("input", typed);
-  $("searchForm").addEventListener("submit", (e) => { e.preventDefault(); typed.cancel(); const q = $("q").value.trim(); if (q === state.q) { lastKey = null; } nav({ q }, true); });
-  $("gDoc").addEventListener("click", () => nav({ group: "doc" }, true));
-  $("gPara").addEventListener("click", () => nav({ group: "para" }, true));
-  $("clearBtn").addEventListener("click", () => nav({ filters: {} }, true));
+  const typedSave = debounce(() => saveRecent($("q").value), 1500);
+  $("q").addEventListener("input", () => { typed(); typedSave(); renderRecent(); });
+  $("q").addEventListener("focus", renderRecent);
+  $("q").addEventListener("click", () => { if ($("recent").hidden) renderRecent(); });
+  $("q").addEventListener("keydown", (e) => {
+    if ($("recent").hidden) { if (e.key === "ArrowDown") { renderRecent(); e.preventDefault(); } return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); moveRecent(1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); moveRecent(-1); }
+    else if (e.key === "Enter" && recent.idx >= 0) { e.preventDefault(); runQuery(recent.items[recent.idx]); }
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeRecent(); }
+  });
+  $("searchForm").addEventListener("focusout", (e) => { if (!e.relatedTarget || !$("searchForm").contains(e.relatedTarget)) closeRecent(); });
+  $("searchForm").addEventListener("submit", (e) => { e.preventDefault(); typed.cancel(); typedSave.cancel(); closeRecent(); const q = $("q").value.trim(); saveRecent(q); if (q === state.q) { lastKey = null; } nav({ q }, true); });
+  $("gDoc").addEventListener("click", () => nav({ group: "doc" }));
+  $("gPara").addEventListener("click", () => nav({ group: "para" }));
+  $("sortSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-sort]"); if (!b || b.disabled) return;
+    nav({ sort: b.dataset.sort === "rel" ? "" : b.dataset.sort });
+  });
+  $("clearBtn").addEventListener("click", clearAll);
   $("moreBtn").addEventListener("click", () => runSearch(true));
   $("vHtml").addEventListener("click", () => nav({ view: "html" }));
   $("vPdf").addEventListener("click", () => nav({ view: "pdf" }));
@@ -591,18 +850,62 @@
   $("filtersBtn").addEventListener("click", () => sidebar(!$("sidebar").classList.contains("open")));
   $("sidebarClose").addEventListener("click", () => sidebar(false));
   $("sidebarBackdrop").addEventListener("click", () => sidebar(false));
+
+  // help / modal
+  $("helpBtn").addEventListener("click", openModal); $("hintHelp").addEventListener("click", openModal);
+  $("tHelp").addEventListener("click", () => { closeTools(); openModal(); });
+  $("mClose").addEventListener("click", () => closeModal()); $("modalBack").addEventListener("click", () => closeModal());
+  // sample queries on the empty state
+  $("try").append(h("span", { class: "try-k" }, "Spróbuj: "), ...SAMPLES.map((q) => h("button", { type: "button", class: "ex", onclick: () => runQuery(q) }, q)));
+  // tools
+  $("toolsBtn").addEventListener("click", () => {
+    const o = !toolsOpen(); $("tools").classList.toggle("open", o); $("toolsBtn").setAttribute("aria-expanded", String(o));
+    if (o) $("tools").querySelector(".tool").focus();
+  });
+  $("tCsv").addEventListener("click", () => exportResults("csv"));
+  $("tMd").addEventListener("click", () => exportResults("md"));
+  $("tLink").addEventListener("click", () => { closeTools(); copyText(location.href, "Skopiowano link do wyszukiwania"); });
+  $("tTheme").addEventListener("click", () => { const t = THEMES[(THEMES.indexOf($("tTheme").dataset.theme) + 1) % 3]; applyTheme(t, true); });
+  document.addEventListener("click", (e) => { if (toolsOpen() && !e.target.closest("#tools, #toolsBtn")) closeTools(); });
+  applyTheme(ls.get(THEME_KEY), false);
+
+  // drawer resize
+  const dr = $("dResize");
+  { const saved = parseFloat(ls.get(DW_KEY)); if (isFinite(saved)) setDrawerW(saved, false); }
+  dr.addEventListener("pointerdown", (e) => {
+    if (!mqWide.matches) return;
+    e.preventDefault(); dr.setPointerCapture(e.pointerId); document.body.classList.add("resizing");
+    const mv = (ev) => setDrawerW(((window.innerWidth - ev.clientX) / window.innerWidth) * 100, false);
+    const up = () => { dr.removeEventListener("pointermove", mv); dr.removeEventListener("pointerup", up); dr.removeEventListener("pointercancel", up); document.body.classList.remove("resizing"); setDrawerW(curVw(), true); };
+    dr.addEventListener("pointermove", mv); dr.addEventListener("pointerup", up); dr.addEventListener("pointercancel", up);
+  });
+  dr.addEventListener("dblclick", () => setDrawerW(null, true));
+  dr.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setDrawerW(curVw() + (e.key === "ArrowLeft" ? 2 : -2), true); }
+    else if (e.key === "Enter") { e.preventDefault(); setDrawerW(null, true); }
+  });
+
+  function trapTab(e, root) {
+    const f = [...root.querySelectorAll("a[href],button,input,summary,[tabindex]:not([tabindex='-1'])")].filter((x) => !x.disabled && x.offsetParent !== null);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (!root.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+  const typing = () => { const a = document.activeElement; return !!a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable); };
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      if (!$("drawer").hidden) { e.preventDefault(); nav({ doc: "", rec: "" }); }
+      if (isModalOpen()) { e.preventDefault(); closeModal(); }
+      else if (toolsOpen()) { e.preventDefault(); closeTools(true); }
+      else if (!$("drawer").hidden) { e.preventDefault(); nav({ doc: "", rec: "" }); }
       else if ($("sidebar").classList.contains("open")) sidebar(false);
-    } else if (e.key === "Tab" && !$("drawer").hidden) {
-      const f = [...$("drawer").querySelectorAll("a[href],button,input,summary,[tabindex]:not([tabindex='-1'])")].filter((x) => !x.disabled && x.offsetParent !== null);
-      if (!f.length) return;
-      const first = f[0], last = f[f.length - 1];
-      if (!$("drawer").contains(document.activeElement)) { e.preventDefault(); first.focus(); }
-      else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    } else if (e.key === "/" && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) && $("drawer").hidden) { e.preventDefault(); $("q").focus(); }
+    } else if (e.key === "Tab" && isModalOpen()) trapTab(e, $("modal"));
+    else if (e.key === "Tab" && !$("drawer").hidden) trapTab(e, $("drawer"));
+    else if (e.ctrlKey || e.metaKey || e.altKey || typing()) return;
+    else if (e.key === "/" && $("drawer").hidden && !isModalOpen()) { e.preventDefault(); $("q").focus(); }
+    else if (e.key === "?" && !isModalOpen()) { e.preventDefault(); openModal(); }
+    else if ((e.key === "g" || e.key === "G") && $("drawer").hidden && !isModalOpen() && !$("sidebar").classList.contains("open")) { e.preventDefault(); nav({ group: state.group === "doc" ? "para" : "doc" }); }
   });
   window.addEventListener("hashchange", apply);
 
