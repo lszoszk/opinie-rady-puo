@@ -227,7 +227,7 @@ h4.sec { font: italic 400 16.5px/1.3 var(--display); margin: 16px 0 6px; color: 
   .ctl-row .seg { flex: none; }
   .ctl-row .seg button { flex: none; min-height: 44px; }
   .filters-btn { display: none; }
-  .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 40px; padding: 18px 28px 40px; align-items: start; }
+  .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 32px; padding: 18px 28px 40px; align-items: start; }
   .sidebar { position: sticky; top: 132px; max-height: calc(100vh - 148px); overflow: auto; padding: 0 12px 0 0; }
   .sidebar-head { padding-bottom: 6px; }
   .facet-item { min-height: 0; padding: 4px 8px; font-size: 15px; }
@@ -262,7 +262,7 @@ h4.sec { font: italic 400 16.5px/1.3 var(--display); margin: 16px 0 6px; color: 
   .flow { font-size: 17.5px; }
 }
 @media (min-width: 1500px) {
-  .layout { grid-template-columns: 290px minmax(0, 1fr); }
+  .layout { grid-template-columns: 260px minmax(0, 1fr); gap: 40px; }
 }
 @media (max-height: 500px) and (max-width: 899.98px) { .drawer-head { max-height: 38dvh; } .sidebar { max-height: 94dvh; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
@@ -295,7 +295,7 @@ h4.sec { font: italic 400 16.5px/1.3 var(--display); margin: 16px 0 6px; color: 
 .histo { margin: 8px 0 4px; max-width: 560px; }
 .histo-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font: 500 11px/1.6 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
 .histo-h .link { text-transform: none; letter-spacing: 0; padding: 4px 0; }
-.hbars { display: flex; gap: 3px; height: 96px; margin-top: 2px; }
+.hbars { display: flex; gap: 2px; height: 84px; margin-top: 2px; }
 .hbar { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: stretch; background: none; border: 1px solid transparent; padding: 2px 0 0; text-align: center; }
 .hbar:hover { background: var(--paper-2); border-color: var(--rule); }
 .hb-n { font: 10.5px/1.3 var(--mono); color: var(--ink-3); font-variant-numeric: tabular-nums; }
@@ -305,9 +305,12 @@ h4.sec { font: italic 400 16.5px/1.3 var(--display); margin: 16px 0 6px; color: 
 .hbar[aria-pressed="true"] { background: var(--garnet-soft); border-color: var(--garnet-edge); }
 .hbar[aria-pressed="true"] .hb-fill { background: var(--garnet); }
 .hbar[aria-pressed="true"] .hb-n, .hbar[aria-pressed="true"] .hb-y { color: var(--garnet); font-weight: 600; }
-.hb-y { font: 10.5px/1.6 var(--mono); color: var(--ink-3); }
-.histo-main { display: none; }
-.histo-side { padding-bottom: 8px; }
+.hb-y { font: 10px/1.6 var(--mono); color: var(--ink-3); white-space: nowrap; }
+.hb-n { font-size: 10px; }
+.histo-tip { font: 11px/1.4 var(--mono); color: var(--ink-4); margin-top: 2px; }
+.histo-h { flex-wrap: wrap; }
+.histo-side .hb-track { padding: 0 14%; }
+.histo-side { padding: 4px 0 8px; }
 .histo-side .histo { max-width: none; }
 
 .facet summary .sel-n { color: var(--garnet); }
@@ -339,8 +342,6 @@ label.facet-item:has(input:focus-visible) { outline: 2px solid var(--garnet); ou
   .tool.only-narrow { display: none; }
   .tl-long { display: none; } .tl-short { display: inline; }
   .tool { min-height: 40px; padding: 6px 9px; }
-  .histo-main { display: block; }
-  .histo-side { display: none; }
   .resbar { margin-top: 8px; }
   label.facet-item { padding: 4px 8px; }
 }
@@ -377,4 +378,32 @@ kbd { font: 12px var(--mono); border: 1px solid var(--ink-4); border-bottom-widt
   table.ref thead { display: none; }
   table.ref td { border: 0; padding: 2px 0; }
   table.ref tr { padding: 8px 0; }
+}
+
+/* ---------- search mode toggle ("Słowa | Znaczenie"), narrower filters ---------- */
+.ctl-row { flex-wrap: wrap; }
+.ctl-row .seg button { padding-left: 10px; padding-right: 10px; }
+.top-sub .rerank { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer; margin-left: 4px; }
+.top-sub .rerank input { accent-color: var(--garnet); margin: 0; }
+.facet-item .fl, label.facet-item .fl { overflow-wrap: anywhere; hyphens: auto; line-height: 1.3; }
+.facet-item { line-height: 1.3; font-size: 14.5px; }
+label.facet-item { gap: 8px; }
+.facet-item .fc { padding-left: 2px; }
+.sem-down { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.sem-down p { margin: 8px 0; }
+@media (min-width: 900px) { .facet-item { font-size: 14px; } }
+/* 900–1399px: tools in the "⋯" menu too, so the search box keeps its width next to the mode toggle */
+@media (min-width: 900px) and (max-width: 1399.98px) {
+  .tools-btn { display: block; }
+  .tools { display: none; }
+  .tools.open { display: flex; flex-direction: column; position: absolute; right: 0; top: calc(100% + 4px); z-index: 35; width: 300px; background: var(--paper); border: 1px solid var(--ink); box-shadow: var(--shadow); }
+  .tools .tool { border: 0; border-bottom: 1px solid var(--rule-soft); min-height: 44px; font-size: 12px; padding: 10px 14px; }
+  .tools .tool:last-child { border-bottom: 0; }
+  .tl-long { display: inline; } .tl-short { display: none; }
+}
+.ctl-row .seg button { white-space: nowrap; }
+@media (max-width: 899.98px) {
+  .ctl-row .seg { flex: 1 1 40%; }
+  .ctl-row .seg button { padding-left: 6px; padding-right: 6px; }
+  .ctl-row .filters-btn { flex: 1 1 auto; }
 }

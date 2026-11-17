@@ -24,6 +24,10 @@
       <div id="recent" class="recent" role="listbox" aria-label="Ostatnie wyszukiwania" hidden></div>
     </form>
     <div class="ctl-row">
+      <div class="seg" role="group" aria-label="Tryb wyszukiwania">
+        <button type="button" id="mWords" aria-pressed="true" title="Dosłowne wyszukiwanie po słowach">Słowa</button>
+        <button type="button" id="mSem" aria-pressed="false" title="Wyszukiwanie po znaczeniu (semantyczne)">Znaczenie</button>
+      </div>
       <div class="seg" role="group" aria-label="Rodzaj wyników">
         <button type="button" id="gDoc" aria-pressed="true">Uchwały</button>
         <button type="button" id="gPara" aria-pressed="false">Punkty</button>
@@ -40,7 +44,8 @@
     </div>
   </div>
   <div class="top-sub">
-    <span class="hint">Słowa = wszystkie w jednym punkcie, odmiana uwzględniona; <code>"fraza"</code> dosłownie; <code>OR</code>, <code>-słowo</code>, <code>sztuczn*</code> – <button type="button" class="link" id="hintHelp">pełna składnia</button>.</span>
+    <span id="semHint" class="hint" hidden>Znaczenie: szuka podobnych treści, także bez tych samych słów (Voyage AI). <label class="rerank"><input type="checkbox" id="rerank" checked> dokładniej (rerank)</label></span>
+    <span id="lexHint" class="hint">Słowa = wszystkie w jednym punkcie, odmiana uwzględniona; <code>"fraza"</code> dosłownie; <code>OR</code>, <code>-słowo</code>, <code>sztuczn*</code> – <button type="button" class="link" id="hintHelp">pełna składnia</button>.</span>
     <span id="stats" class="stats"></span>
   </div>
 </header>
@@ -59,7 +64,6 @@
   </aside>
   <main class="results-wrap">
     <div id="chips" class="chips" aria-label="Aktywne filtry"></div>
-    <div id="histoMain" class="histo-main"></div>
     <div class="resbar">
       <div id="summary" class="summary" aria-live="polite"></div>
       <div id="sortSeg" class="seg sort" role="group" aria-label="Sortowanie">

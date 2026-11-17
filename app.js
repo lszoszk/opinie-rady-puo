@@ -70,11 +70,13 @@
   const SORTS = ["rel", "new", "old"];
 
   // ---------- state & hash ----------
-  const state = { q: "", group: "doc", sort: "", filters: {}, yf: "", yt: "", mode: { warunek: "any", instrument: "any" }, doc: "", rec: "", view: "html" };
+  const SEM_BASE = (location.hostname === "localhost" || location.hostname === "127.0.0.1") ? "" : "https://150.254.115.204/gaar-api";
+  const RERANK_KEY = "rpuo.rerank";
+  const state = { q: "", sem: false, rerank: ls.get(RERANK_KEY) === "1",  /* off by default: not better in tests, an extra Voyage call per query */ group: "doc", sort: "", filters: {}, yf: "", yt: "", mode: { warunek: "any", instrument: "any" }, doc: "", rec: "", view: "html" };
   const yearOk = (v) => (/^\d{4}$/.test(v || "") ? v : "");
   function parseHash() {
     const p = new URLSearchParams(location.hash.replace(/^#/, ""));
-    const s = { q: p.get("q") || "", group: p.get("group") === "para" ? "para" : "doc", sort: SORTS.includes(p.get("sort")) ? p.get("sort") : "", filters: {},
+    const s = { q: p.get("q") || "", sem: p.get("m") === "sem", group: p.get("group") === "para" ? "para" : "doc", sort: SORTS.includes(p.get("sort")) ? p.get("sort") : "", filters: {},
       yf: yearOk(p.get("year_from")), yt: yearOk(p.get("year_to")),
       mode: { warunek: p.get("mode_warunek") === "all" ? "all" : "any", instrument: p.get("mode_instrument") === "all" ? "all" : "any" },
       doc: p.get("doc") || "", rec: p.get("rec") || "", view: p.get("view") === "pdf" ? "pdf" : "html" };
@@ -97,10 +99,12 @@
   }
   function buildHash(s) {
     const p = searchParams(s);
+    if (s.sem) p.set("m", "sem");
     if (s.doc) { p.set("doc", s.doc); if (s.rec) p.set("rec", s.rec); if (s.view === "pdf") p.set("view", "pdf"); }
     return p.toString();
   }
-  const effSort = (s = state) => (s.q ? (s.sort || "rel") : (s.sort === "old" ? "old" : "new"));
+  const semActive = (s = state) => !!(s.sem && s.q);  // "Znaczenie" needs a query; without one we browse lexically
+  const effSort = (s = state) => (semActive(s) ? "rel" : s.q ? (s.sort || "rel") : (s.sort === "old" ? "old" : "new"));
   // changes -> new hash; push (default) creates history entry; replace edits current
   function nav(changes, replace) {
     const next = { ...state, ...changes };
@@ -110,7 +114,7 @@
     if (replace) { history.replaceState(null, "", "#" + hash); apply(); }
     else location.hash = hash; // hashchange -> apply
   }
-  const searchKey = (s) => JSON.stringify([s.q, s.group, effSort(s), FKEYS.map((k) => s.filters[k] || []), s.yf, s.yt, s.mode]);
+  const searchKey = (s) => JSON.stringify([s.q, semActive(s) ? (s.rerank ? "sem+" : "sem") : "", s.group, effSort(s), FKEYS.map((k) => s.filters[k] || []), s.yf, s.yt, s.mode]);
   const nActive = (s = state) => FKEYS.reduce((n, k) => n + (s.filters[k] || []).length, 0) + (s.yf || s.yt ? 1 : 0);
 
   // ---------- recent searches ----------
@@ -129,18 +133,35 @@
   let results = { hits: [], total: 0, offset: 0 }, searchCtl = null, lastKey = null;
   const apiParams = (extra) => { const p = searchParams(state); p.set("sort", effSort()); p.set("group", state.group); for (const [k, v] of Object.entries(extra)) p.set(k, v); return p; };
   let searchSeq = 0;
+  // semantic + lexical hybrid search on our server (plain fetch, never STATIC_API)
+  async function getSemantic(p, signal) {
+    const r = await fetch(`${SEM_BASE}/api/semantic?${p}`, { signal });
+    if (r.status === 429) { const e = new Error("429"); e.rate = true; throw e; }
+    let d = null;
+    try { d = await r.json(); } catch {}
+    if (!r.ok || !d || d.error || !Array.isArray(d.hits)) { const e = new Error("semantic unavailable"); e.unavailable = true; throw e; }
+    return d;
+  }
+  function semUnavailable(msg) {
+    $("summary").textContent = msg;
+    $("results").textContent = ""; $("moreBtn").hidden = true; $("notice").hidden = true; $("try").hidden = true;
+    $("results").append(h("div", { class: "empty sem-down" }, h("p", null, msg + "."),
+      h("button", { type: "button", class: "btn", onclick: () => nav({ sem: false }) }, "Wróć do wyszukiwania po słowach")));
+  }
   async function runSearch(append) {
     const seq = ++searchSeq;
     if (searchCtl) searchCtl.abort();
     searchCtl = new AbortController();
     const offset = append ? results.hits.length : 0;
+    const sem = semActive();
     const p = apiParams({ limit: LIMIT, offset });
+    if (sem) { p.delete("sort"); p.set("mode", "hybrid"); if (state.rerank) p.set("rerank", "1"); }
     if (!append) $("summary").textContent = "Szukam…";
     try {
-      const d = await getJSON("/api/search?" + p, searchCtl.signal);
+      const d = sem ? await getSemantic(p, searchCtl.signal) : await getJSON("/api/search?" + p, searchCtl.signal);
       learnSchemes(d.hits);
       // counts of a facet with its own selection ignore that selection, so more values can be added (OR within a facet)
-      if (!append) await Promise.all(FKEYS.filter((k) => (state.filters[k] || []).length).map(async (k) => {
+      if (!append && !sem) await Promise.all(FKEYS.filter((k) => (state.filters[k] || []).length).map(async (k) => {
         const s2 = { ...state, filters: { ...state.filters } }; delete s2.filters[k];
         const p2 = searchParams(s2); p2.set("sort", effSort()); p2.set("group", state.group); p2.set("limit", 0);
         try { const o = await getJSON("/api/search?" + p2, searchCtl.signal); if (o.facets && o.facets[k]) d.facets[k] = o.facets[k]; } catch (e) { if (e.name === "AbortError") throw e; }
@@ -153,7 +174,10 @@
       renderFacets(d.facets || {});
       renderChips();
     } catch (e) {
-      if (e.name !== "AbortError") $("summary").textContent = "Błąd wyszukiwania: " + e.message;
+      if (e.name === "AbortError" || seq !== searchSeq) return;
+      if (e.rate) { toast("Za dużo zapytań – spróbuj za minutę"); if (append) return; semUnavailable("Za dużo zapytań – spróbuj za minutę"); }
+      else if (sem) { if (append) { toast("Wyszukiwanie semantyczne jest chwilowo niedostępne"); return; } semUnavailable("Wyszukiwanie semantyczne jest chwilowo niedostępne"); }
+      else $("summary").textContent = "Błąd wyszukiwania: " + e.message;
     }
   }
 
@@ -195,26 +219,25 @@
     const bars = h("div", { class: "hbars" }, years.map((y) => {
       const n = counts[y] || 0, on = ranged && y >= lo && y <= hi;
       return h("button", { type: "button", class: "hbar" + (n ? "" : " zero"), "aria-pressed": String(on), "aria-label": `${y}: ${n} ${plUchwal(n)}`,
-        title: "Klik: tylko ten rok · Shift+klik: rozszerz zakres", onclick: (e) => {
+        title: `${y}: ${n} ${plUchwal(n)} · Klik: tylko ten rok · Shift+klik: rozszerz zakres`, onclick: (e) => {
           if (e.shiftKey && ranged) setYears(Math.min(lo, y), Math.max(hi, y));
           else if (lo === y && hi === y) setYears("", "");
           else setYears(y, y);
         } },
         h("span", { class: "hb-n", "aria-hidden": "true" }, String(n)),
         h("span", { class: "hb-track", "aria-hidden": "true" }, h("span", { class: "hb-fill", style: `height:${n ? Math.max(4, Math.round((n / max) * 100)) : 0}%` })),
-        h("span", { class: "hb-y", "aria-hidden": "true" }, String(y)));
+        h("span", { class: "hb-y", "aria-hidden": "true" }, "\u2019" + String(y).slice(-2)));
     }));
     return h("div", { class: "histo", role: "group", "aria-label": "Uchwały według roku" },
-      h("div", { class: "histo-h" }, h("span", null, "Rok uchwały"), h("button", { type: "button", class: "link tiny", hidden: !ranged, onclick: () => setYears("", "") }, "wszystkie lata")), bars);
+      h("div", { class: "histo-h" }, h("span", null, "Rok uchwały"), h("button", { type: "button", class: "link tiny", hidden: !ranged, onclick: () => setYears("", "") }, "wszystkie lata")), bars,
+      h("div", { class: "histo-tip" }, "Klik: ten rok · Shift+klik: zakres"));
   }
-  function renderHisto() { const m = $("histoMain"); m.textContent = ""; m.append(buildHisto(lastYear)); }
 
   // ----- facets -----
   const facetFind = {}, facetClosed = {};
   const NORM = (s) => (s || "").toLowerCase();
   function renderFacets(facets) {
     lastYear = facets.year || {};
-    renderHisto();
     const box = $("facets");
     const focusKey = document.activeElement && box.contains(document.activeElement) ? document.activeElement.dataset.fk : null;
     const scroller = window.matchMedia("(min-width: 900px)").matches ? $("sidebar") : box, st = scroller.scrollTop;
@@ -330,7 +353,7 @@
     if (!appended) box.textContent = "";
     (appended || results.hits).forEach((x) => box.append(para ? paraCard(x) : docCard(x)));
     const browse = !state.q;
-    $("summary").textContent = (para ? `Punkty: ${d.total_unique ?? d.total_paragraphs}` + (d.total_unique != null && d.total_unique !== d.total_paragraphs ? ` (z powtórzeniami w seriach ${d.total_paragraphs})` : "") : `Uchwały: ${d.total_groups ?? d.total_docs}` + (d.total_docs != null && d.total_groups != null && d.total_docs !== d.total_groups ? ` (w seriach łącznie ${d.total_docs})` : "") + `, punkty z trafieniem: ${d.total_paragraphs}`) + (browse ? " · przeglądanie" : "");
+    $("summary").textContent = (para ? `Punkty: ${d.total_unique ?? d.total_paragraphs}` + (d.total_unique != null && d.total_unique !== d.total_paragraphs ? ` (z powtórzeniami w seriach ${d.total_paragraphs})` : "") : `Uchwały: ${d.total_groups ?? d.total_docs}` + (d.total_docs != null && d.total_groups != null && d.total_docs !== d.total_groups ? ` (w seriach łącznie ${d.total_docs})` : "") + `, punkty z trafieniem: ${d.total_paragraphs}`) + (browse ? " · przeglądanie" : "") + (semActive() ? " · wg znaczenia" : "");
     const n = $("notice");
     const relaxed = d.relaxed_or && results.hits.length > 0;
     n.hidden = !relaxed;
@@ -658,12 +681,19 @@
 
   // ---------- apply state ----------
   let applied = { doc: "", rec: "", view: "html" };
+  const mqPh = window.matchMedia("(max-width: 599.98px)");
+  mqPh.addEventListener("change", () => renderControls());
   function renderControls() {
+    $("mWords").setAttribute("aria-pressed", String(!state.sem)); $("mSem").setAttribute("aria-pressed", String(state.sem));
+    $("semHint").hidden = !state.sem; $("lexHint").hidden = state.sem;
+    $("rerank").checked = state.rerank;
+    $("q").placeholder = !state.sem ? "np. \"czynność odpowiednia\"" : mqPh.matches ? "opisz zagadnienie własnymi słowami" : "opisz zagadnienie własnymi słowami, np. przeniesienie znaku towarowego do spółki zależnej i licencja zwrotna";
     $("gDoc").setAttribute("aria-pressed", String(state.group === "doc")); $("gPara").setAttribute("aria-pressed", String(state.group === "para"));
     const es = effSort();
     document.querySelectorAll("#sortSeg button").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.sort === es));
       if (b.dataset.sort === "rel") { b.disabled = !state.q; b.title = state.q ? "" : "Trafność dotyczy tylko wyszukiwania ze słowami"; }
+      else { b.disabled = semActive(); b.title = semActive() ? "W trybie „Znaczenie” wyniki są sortowane wg trafności" : ""; }
     });
   }
   function apply() {
@@ -710,6 +740,10 @@
         h("li", null, h("strong", null, "Operatory wielkimi literami. "), h("code", null, "AND"), ", ", h("code", null, "OR"), ", ", h("code", null, "NOT"), "; małymi literami to zwykłe słowa."),
         h("li", null, h("strong", null, "Komunikat „Żaden punkt nie zawiera wszystkich słów – pokazuję dowolne”"), " (", h("code", null, "relaxed_or"), "). Jeśli zwykłe zapytanie (bez operatorów) z kilku słów nie znalazło żadnego punktu ze wszystkimi słowami, wyszukiwarka pokazuje punkty z którymkolwiek z nich. Żeby wymusić wszystkie słowa, użyj ", h("code", null, "AND"), " albo cudzysłowu."),
         h("li", null, h("strong", null, "Filtry. "), "Kilka wartości w jednym filtrze to „lub”; dla Warunku i Instrumentów można przełączyć na „wszystkie”. Słupek roku: klik = ten rok, Shift+klik = rozszerz zakres.")),
+      h("h3", null, "Dwa tryby: Słowa i Znaczenie"),
+      h("ul", { class: "help-notes" },
+        h("li", null, h("strong", null, "Słowa. "), "Dosłowne wyszukiwanie po wyrazach (z odmianą) i operatorami opisanymi wyżej; działa w przeglądarce."),
+        h("li", null, h("strong", null, "Znaczenie. "), "Szuka punktów podobnych treścią do opisanego zagadnienia, także gdy nie mają tych samych słów (wyszukiwanie semantyczne połączone ze słowami, Voyage AI). Wpisz zdanie własnymi słowami; operatory (", h("code", null, "OR"), ", ", h("code", null, "-słowo"), ", cudzysłów) tu nie działają. „Dokładniej (rerank)” dodatkowo porządkuje najlepsze wyniki – wolniej, ale trafniej. Wyniki są sortowane wg trafności. Bez wpisanego zapytania przeglądasz uchwały jak w trybie Słowa.")),
       h("h3", null, "Skróty klawiaturowe"),
       h("div", { class: "tbl-wrap" }, h("table", { class: "ref" }, h("tbody", null,
         kb("/", "przejdź do pola wyszukiwania"), kb("?", "ta pomoc (składnia i skróty)"), kb("Esc", "zamknij okno, panel uchwały lub filtry"),
@@ -770,7 +804,9 @@
   async function exportResults(kind) {
     closeTools(); toast("Przygotowuję eksport…");
     try {
-      const d = await getJSON("/api/search?" + apiParams({ limit: 10000, offset: 0 }));
+      let d;
+      if (semActive()) { const p = apiParams({ limit: 100, offset: 0 }); p.delete("sort"); p.set("mode", "hybrid"); if (state.rerank) p.set("rerank", "1"); d = await getSemantic(p); toast("Tryb „Znaczenie”: eksport obejmuje 100 najtrafniejszych wyników"); }
+      else d = await getJSON("/api/search?" + apiParams({ limit: 10000, offset: 0 }));
       learnSchemes(d.hits);
       const rows = d.hits.map(hitInfo), stamp = new Date().toISOString().slice(0, 10);
       if (!rows.length) { toast("Brak wyników do eksportu"); return; }
@@ -784,7 +820,7 @@
         download(`opinie-rady-puo-${stamp}.md`, "text/markdown;charset=utf-8", md.join("\n") + "\n");
       }
       toast(`Wyeksportowano: ${rows.length}`);
-    } catch (e) { toast("Błąd eksportu: " + e.message); }
+    } catch (e) { toast(e.rate ? "Za dużo zapytań – spróbuj za minutę" : e.unavailable ? "Wyszukiwanie semantyczne jest chwilowo niedostępne" : "Błąd eksportu: " + e.message); }
   }
   const THEME_KEY = "rpuo.theme", THEMES = ["auto", "light", "dark"], THEME_NAME = { auto: "auto", light: "jasny", dark: "ciemny" };
   function applyTheme(t, persist) {
@@ -827,6 +863,9 @@
   });
   $("searchForm").addEventListener("focusout", (e) => { if (!e.relatedTarget || !$("searchForm").contains(e.relatedTarget)) closeRecent(); });
   $("searchForm").addEventListener("submit", (e) => { e.preventDefault(); typed.cancel(); typedSave.cancel(); closeRecent(); const q = $("q").value.trim(); saveRecent(q); if (q === state.q) { lastKey = null; } nav({ q }, true); });
+  $("mWords").addEventListener("click", () => nav({ sem: false }));
+  $("mSem").addEventListener("click", () => nav({ sem: true }));
+  $("rerank").addEventListener("change", (e) => { state.rerank = e.target.checked; ls.set(RERANK_KEY, state.rerank ? "1" : "0"); apply(); });
   $("gDoc").addEventListener("click", () => nav({ group: "doc" }));
   $("gPara").addEventListener("click", () => nav({ group: "para" }));
   $("sortSeg").addEventListener("click", (e) => {
