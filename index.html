@@ -6,12 +6,13 @@
 <meta name="color-scheme" content="light dark">
 <title>Opinie Rady PUO – wyszukiwarka</title>
 <script>try{var t=localStorage.getItem("rpuo.theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
-<link rel="stylesheet" href="tokens.css">
-<link rel="stylesheet" href="fonts.css">
-<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="tokens.css?v=c1ccaf98">
+<link rel="stylesheet" href="fonts.css?v=cede2929">
+<link rel="stylesheet" href="app.css?v=ebec5ab8">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
-<script src="static-api.js"></script>
-  <script src="app.js" defer></script>
+<script src="static-api.js?v=1acf3a47"></script>
+  <script src="app.js?v=4d4837a4" defer></script>
+  <script src="tour.js?v=9f0bba97" defer></script>
 </head>
 <body>
 <header class="top">
@@ -47,6 +48,7 @@
     <span id="semHint" class="hint" hidden>Znaczenie: szuka podobnych treści, także bez tych samych słów (Voyage AI). <label class="rerank"><input type="checkbox" id="rerank" checked> dokładniej (rerank)</label></span>
     <span id="lexHint" class="hint">Słowa = wszystkie w jednym punkcie, odmiana uwzględniona; <code>"fraza"</code> dosłownie; <code>OR</code>, <code>-słowo</code>, <code>sztuczn*</code> – <button type="button" class="link" id="hintHelp">pełna składnia</button>.</span>
     <span id="stats" class="stats"></span>
+    <button type="button" id="tourBtn" class="link tour-link" title="Krótki przewodnik po wyszukiwarce">Przewodnik</button>
   </div>
 </header>
 
