@@ -8,7 +8,7 @@
 <script>try{var t=localStorage.getItem("rpuo.theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="stylesheet" href="tokens.css?v=c1ccaf98">
 <link rel="stylesheet" href="fonts.css?v=cede2929">
-<link rel="stylesheet" href="app.css?v=ebec5ab8">
+<link rel="stylesheet" href="app.css?v=3ac6a1bc">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
 <script src="static-api.js?v=1acf3a47"></script>
   <script src="app.js?v=4d4837a4" defer></script>
@@ -78,6 +78,27 @@
     <div id="try" class="try" hidden></div>
     <div id="results" class="results"></div>
     <div class="more-wrap"><button type="button" id="moreBtn" class="btn" hidden>Pokaż więcej</button></div>
+
+    <footer class="site-footer" aria-label="O narzędziu">
+      <p><strong>Przygotowane na Forum Podatkowe UAM, 19 listopada 2026 r.</strong> (wykład o sztucznej inteligencji w pracy prawników).</p>
+      <p>Autor: <strong>Łukasz Szoszkiewicz</strong> (Wydział Prawa i Administracji UAM). Narzędzie zbudowane 17 listopada 2026 r. w Claude Code (Anthropic): Claude Opus 5.5 jako główny agent, subagenci Claude Sonnet 5.5.</p>
+      <p><strong>Źródło danych:</strong> Ministerstwo Finansów, Rada do Spraw Przeciwdziałania Unikaniu Opodatkowania –
+        <a href="https://www.gov.pl/web/finanse/prace-rady2" rel="noopener">Prace Rady z podziałem na tematy i kadencje</a>
+        (opinie dotyczące GAAR i ograniczenia korzyści umownych, kadencje I–III; pobrane 17.11.2026). 74 uchwały, 1936 stron.</p>
+      <details class="footer-cost">
+        <summary>Zużyte zasoby</summary>
+        <ul>
+          <li>Praca: jeden dzień (17.11.2026, ok. 28 poleceń), od pobrania PDF-ów po wyszukiwanie semantyczne.</li>
+          <li>Plan Claude Max: ok. <strong>8 pp tygodniowego limitu</strong> (21% → 29%); subagenci Sonnet łącznie ok. 1,7 mln tokenów.</li>
+          <li>Voyage AI <code>voyage-4-large</code>: 1,6 mln tokenów (jednorazowe embeddingi 5623 fragmentów) + zapytania w trybie „Znaczenie”.</li>
+          <li>Jev (TypeSafe): 208 zapytań (kalibracja ról punktów).</li>
+          <li>OCR: Tesseract lokalnie (933 strony skanów, 7 min); kontrola modelem Chandra OCR 2: 0,06 h GPU A100 (Cyfronet Athena).</li>
+          <li>Hosting: GitHub Pages (strona) i maszyna wirtualna UAM (API wyszukiwania semantycznego).</li>
+        </ul>
+      </details>
+      <p class="footer-note">Opisy zespołów czynności, typy schematów i tagi to opracowanie (reguły + model językowy, z dosłownymi cytatami jako dowodem), nie treść uchwał. Tekst skanów pochodzi z OCR – przy cytowaniu sprawdź w PDF.
+        Kod i dane: <a href="https://github.com/lszoszk/opinie-rady-puo" rel="noopener">github.com/lszoszk/opinie-rady-puo</a>.</p>
+    </footer>
   </main>
 </div>
 <div id="sidebarBackdrop" class="backdrop-lite" hidden></div>

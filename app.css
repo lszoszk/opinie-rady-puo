@@ -439,3 +439,14 @@ label.facet-item { gap: 8px; }
   .tour-offer { left: 8px; right: 8px; width: auto; bottom: calc(8px + env(safe-area-inset-bottom)); }
   .tour-offer-b .tour-b { flex: 1; }
 }
+
+/* stopka: okazja, autor, źródło danych, zużyte zasoby */
+.site-footer { margin: 3rem 0 2rem; padding-top: 1.25rem; border-top: 3px double var(--rule); font-size: .92rem; color: var(--ink-3); line-height: 1.55; overflow-wrap: anywhere; }
+.site-footer p { margin: 0 0 .6rem; max-width: 75ch; }
+.site-footer a { color: var(--garnet); }
+.site-footer code { font-size: .85em; }
+.footer-cost { margin: .4rem 0 .8rem; max-width: 75ch; }
+.footer-cost summary { cursor: pointer; font-family: var(--mono, monospace); font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); padding: .3rem 0; }
+.footer-cost ul { margin: .4rem 0 0; padding-left: 1.2rem; }
+.footer-cost li { margin: .2rem 0; }
+.footer-note { font-size: .85rem; color: var(--ink-4); }
