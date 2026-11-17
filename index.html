@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Opinie Rady PUO – wyszukiwarka</title>
+<link rel="stylesheet" href="app.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
+<script src="static-api.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+    <h1 class="brand">Opinie Rady PUO</h1>
+    <form id="searchForm" class="searchbox" role="search" autocomplete="off">
+      <input id="q" type="search" aria-label="Szukaj w uchwałach" placeholder="np. sztuczność znak towarowy, &quot;czynność odpowiednia&quot;" spellcheck="false">
+      <button type="submit" class="btn primary">Szukaj</button>
+    </form>
+    <div class="seg" role="group" aria-label="Rodzaj wyników">
+      <button type="button" id="gDoc" aria-pressed="true">Uchwały</button>
+      <button type="button" id="gPara" aria-pressed="false">Punkty</button>
+    </div>
+    <button type="button" id="filtersBtn" class="btn filters-btn" aria-expanded="false" aria-controls="sidebar">Filtry</button>
+  </div>
+  <div class="top-sub">
+    <span class="hint">Słowa = wszystkie w jednym punkcie, odmiana uwzględniona; <code>"fraza"</code> dosłownie.</span>
+    <span id="stats" class="stats"></span>
+  </div>
+</header>
+
+<div class="layout">
+  <aside id="sidebar" class="sidebar" aria-label="Filtry">
+    <div class="sidebar-head">
+      <strong>Filtry</strong>
+      <button type="button" id="clearBtn" class="link">Wyczyść</button>
+      <button type="button" id="sidebarClose" class="icon-btn only-narrow" aria-label="Zamknij filtry">×</button>
+    </div>
+    <div id="facets"></div>
+  </aside>
+  <main class="results-wrap">
+    <div id="chips" class="chips" aria-label="Aktywne filtry"></div>
+    <div id="summary" class="summary" aria-live="polite"></div>
+    <div id="notice" class="notice" hidden></div>
+    <div id="results" class="results"></div>
+    <div class="more-wrap"><button type="button" id="moreBtn" class="btn" hidden>Pokaż więcej</button></div>
+  </main>
+</div>
+<div id="sidebarBackdrop" class="backdrop-lite" hidden></div>
+
+<div id="backdrop" class="backdrop" hidden></div>
+<section id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle" hidden>
+  <div class="drawer-head">
+    <div class="dh-top">
+      <h2 id="dTitle" class="dtitle"></h2>
+      <div id="dBadges" class="badges"></div>
+      <button type="button" id="dClose" class="icon-btn" aria-label="Zamknij uchwałę">×</button>
+    </div>
+    <div id="dMeta" class="dmeta"></div>
+    <div class="dh-bar">
+      <div class="seg" role="group" aria-label="Widok">
+        <button type="button" id="vHtml" aria-pressed="true">HTML</button>
+        <button type="button" id="vPdf" aria-pressed="false">PDF</button>
+      </div>
+      <span id="dRecInfo" class="rec-info"></span>
+      <span id="pageInd" class="page-ind" hidden></span>
+    </div>
+  </div>
+  <div id="dBody" class="drawer-body"></div>
+</section>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
