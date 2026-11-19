@@ -14,6 +14,7 @@
   <script src="app.js?v=4d4837a4" defer></script>
   <script src="tour.js?v=1e26cd39" defer></script>
 <script src="statystyki.js" defer></script>   <!-- GoatCounter bez cookies, liczy tylko na lszoszk.github.io -->
+<style>@media (max-width: 1100px) { .fb-data { display: none; } }   /* the footer has room for the dataset link only on wide screens */</style>
 </head>
 <body>
 <header class="top">
@@ -115,6 +116,7 @@
   <span class="fb-item fb-wide">Forum Podatkowe UAM, 19.11.2026</span>
   <span class="fb-item fb-wide"><a href="https://lszoszk.github.io/" target="_blank" rel="noopener">Ł. Szoszkiewicz</a></span>
   <span class="fb-item">źródło: <a href="https://www.gov.pl/web/finanse/prace-rady2" rel="noopener">gov.pl (MF)</a></span>
+  <span class="fb-item fb-wide fb-data">zbiór danych: <a href="https://huggingface.co/datasets/lszoszk/opinie-rady-puo" target="_blank" rel="noopener">Hugging Face</a></span>
   <button type="button" class="fb-about fb-mcp" id="mcpBtn" aria-haspopup="dialog">MCP</button>
   <button type="button" class="fb-about" id="aboutBtn" aria-haspopup="dialog">O narzędziu</button>
 </footer>
@@ -150,7 +152,7 @@
     <li>Jev (TypeSafe): 208 zapytań · Chandra OCR 2: 0,06 h GPU A100 · Tesseract: lokalnie.</li>
     <li>Hosting: GitHub Pages (strona), maszyna wirtualna UAM (API wyszukiwania semantycznego).</li>
   </ul>
-  <p class="about-note">Opisy zespołów czynności, typy schematów i tagi to opracowanie (reguły + model językowy), nie treść uchwał. Tekst skanów pochodzi z OCR – przy cytowaniu sprawdź w PDF. Kod i dane: <a href="https://github.com/lszoszk/opinie-rady-puo" rel="noopener">github.com/lszoszk/opinie-rady-puo</a>.</p>
+  <p class="about-note">Opisy zespołów czynności, typy schematów i tagi to opracowanie (reguły + model językowy), nie treść uchwał. Tekst skanów pochodzi z OCR – przy cytowaniu sprawdź w PDF. Kod i dane: <a href="https://github.com/lszoszk/opinie-rady-puo" rel="noopener">github.com/lszoszk/opinie-rady-puo</a>. Zbiór danych (uchwały, punkty, odesłania, przypisy): <a href="https://huggingface.co/datasets/lszoszk/opinie-rady-puo" target="_blank" rel="noopener">Hugging Face, lszoszk/opinie-rady-puo</a>.</p>
 </dialog>
 <script>
   (function () {
